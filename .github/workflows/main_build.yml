@@ -1,0 +1,164 @@
+name: Build & Release Main
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ===================================================
+  # JOB 1: BUILD (Matriz Windows e Linux)
+  # ===================================================
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      # --- DEPENDÊNCIAS DO LINUX ---
+      - name: Install Linux Dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libsqlite3-dev libfuse2 imagemagick
+
+      - name: Install Project Dependencies
+        run: flutter pub get
+
+      # --- GERAÇÃO DE CÓDIGO (IMPORTANTE: Seu projeto usa Riverpod Generator) ---
+      - name: Run Build Runner
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # --- BUILD LINUX ---
+      - name: Build Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: flutter build linux --release
+
+      - name: Create AppImage (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          # 1. Baixar ferramenta de deploy
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+
+          # 2. Preparar estrutura AppDir
+          mkdir -p AppDir/usr/bin
+          cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
+
+          # 3. Criar arquivo .desktop
+          cat > sesi_downloader.desktop <<EOF
+          [Desktop Entry]
+          Name=SESI Downloader
+          Exec=sesi_downloader
+          Icon=sesi_downloader
+          Type=Application
+          Categories=Utility;Network;
+          EOF
+
+          # 4. Configurar Ícone
+          # Tenta pegar o ícone padrão do flutter se existir, senão baixa um genérico
+          if [ -f "linux/runner/resources/application_icon.png" ]; then
+            cp linux/runner/resources/application_icon.png sesi_downloader.png
+          else
+            wget -q -O sesi_downloader.png https://storage.googleapis.com/cms-storage-bucket/0dbfcc7a59cd1cf16282.png
+          fi
+
+          # Garante tamanho correto do ícone
+          convert sesi_downloader.png -resize 256x256! sesi_downloader.png
+
+          # 5. Gerar AppImage
+          # Nota: O executável do flutter fica em AppDir/usr/bin/sesi_downloader
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --executable AppDir/usr/bin/sesi_downloader \
+            --desktop-file sesi_downloader.desktop \
+            --icon-file sesi_downloader.png \
+            --output appimage
+
+          # Renomear para artifact
+          mv SESI_Downloader*.AppImage sesi-downloader-linux-x64.AppImage
+
+      - name: Upload Linux Artifact
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: sesi-downloader-linux-x64.AppImage
+
+      # --- BUILD WINDOWS ---
+      - name: Build Windows
+        if: matrix.os == 'windows-latest'
+        run: flutter build windows --release
+
+      - name: Compress Windows Build
+        if: matrix.os == 'windows-latest'
+        run: |
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath sesi-downloader-windows-x64.zip
+
+      - name: Upload Windows Artifact
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: sesi-downloader-windows-x64.zip
+
+  # ===================================================
+  # JOB 2: RELEASE
+  # ===================================================
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-build"
+          merge-multiple: true
+
+      - name: Generate Release Info
+        id: info
+        run: |
+          # Gera versão baseada no número da run (ex: v1.0.45)
+          echo "VERSION=v1.0.${{ github.run_number }}" >> $GITHUB_OUTPUT
+
+          # Gera corpo da release com a mensagem do commit
+          echo "### 🚀 Auto Build ${{ github.run_number }}" > release_body.md
+          echo "" >> release_body.md
+          echo "**Commit:** ${{ github.sha }}" >> release_body.md
+          echo "📝 **Mensagem:**" >> release_body.md
+          echo "${{ github.event.head_commit.message }}" >> release_body.md
+
+      - name: Publish Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.info.outputs.VERSION }}
+          name: Release ${{ steps.info.outputs.VERSION }}
+          bodyFile: release_body.md
+          artifacts: "sesi-downloader-linux-x64.AppImage,sesi-downloader-windows-x64.zip"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
