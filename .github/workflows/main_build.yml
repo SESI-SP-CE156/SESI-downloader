@@ -25,7 +25,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          lfs: true
+          lfs: true # MANTIDO: Essencial para baixar os binários reais (ffmpeg/yt-dlp)
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -38,7 +38,7 @@ jobs:
         with:
           channel: "stable"
           cache: true
-
+      
       # --- DEPENDÊNCIAS DO LINUX ---
       - name: Install Linux Dependencies
         if: matrix.os == 'ubuntu-latest'
@@ -49,7 +49,6 @@ jobs:
       - name: Install Project Dependencies
         run: flutter pub get
 
-      # --- GERAÇÃO DE CÓDIGO (IMPORTANTE: Seu projeto usa Riverpod Generator) ---
       - name: Run Build Runner
         run: dart run build_runner build --delete-conflicting-outputs
 
@@ -80,18 +79,14 @@ jobs:
           EOF
 
           # 4. Configurar Ícone
-          # Tenta pegar o ícone padrão do flutter se existir, senão baixa um genérico
           if [ -f "linux/runner/resources/application_icon.png" ]; then
             cp linux/runner/resources/application_icon.png sesi_downloader.png
           else
             wget -q -O sesi_downloader.png https://storage.googleapis.com/cms-storage-bucket/0dbfcc7a59cd1cf16282.png
           fi
-
-          # Garante tamanho correto do ícone
           convert sesi_downloader.png -resize 256x256! sesi_downloader.png
 
           # 5. Gerar AppImage
-          # Nota: O executável do flutter fica em AppDir/usr/bin/sesi_downloader
           ./linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
             --executable AppDir/usr/bin/sesi_downloader \
@@ -99,15 +94,16 @@ jobs:
             --icon-file sesi_downloader.png \
             --output appimage
 
-          # Renomear para artifact
-          mv SESI_Downloader*.AppImage sesi-downloader-linux-x64.AppImage
+          # --- ALTERAÇÃO AQUI: Renomear usando a versão ---
+          mv SESI_Downloader*.AppImage sesi_downloader-v1.0.${{ github.run_number }}-linux-x86_64.AppImage
 
       - name: Upload Linux Artifact
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: linux-build
-          path: sesi-downloader-linux-x64.AppImage
+          # Caminho atualizado com a versão
+          path: sesi_downloader-v1.0.${{ github.run_number }}-linux-x86_64.AppImage
 
       # --- BUILD WINDOWS ---
       - name: Build Windows
@@ -116,15 +112,17 @@ jobs:
 
       - name: Compress Windows Build
         if: matrix.os == 'windows-latest'
+        # --- ALTERAÇÃO AQUI: Nome do Zip com versão ---
         run: |
-          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath sesi-downloader-windows-x64.zip
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.zip
 
       - name: Upload Windows Artifact
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
-          path: sesi-downloader-windows-x64.zip
+          # Caminho atualizado com a versão
+          path: sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.zip
 
   # ===================================================
   # JOB 2: RELEASE
@@ -145,11 +143,9 @@ jobs:
       - name: Generate Release Info
         id: info
         run: |
-          # Gera versão baseada no número da run (ex: v1.0.45)
           echo "VERSION=v1.0.${{ github.run_number }}" >> $GITHUB_OUTPUT
-
-          # Gera corpo da release com a mensagem do commit
-          echo "### 🚀 Auto Build ${{ github.run_number }}" > release_body.md
+          
+          echo "### 🚀 Build v1.0.${{ github.run_number }}" > release_body.md
           echo "" >> release_body.md
           echo "**Commit:** ${{ github.sha }}" >> release_body.md
           echo "📝 **Mensagem:**" >> release_body.md
@@ -161,6 +157,8 @@ jobs:
           tag: ${{ steps.info.outputs.VERSION }}
           name: Release ${{ steps.info.outputs.VERSION }}
           bodyFile: release_body.md
-          artifacts: "sesi-downloader-linux-x64.AppImage,sesi-downloader-windows-x64.zip"
+          # O * (wildcard) vai pegar qualquer arquivo que corresponda ao padrão,
+          # garantindo que pegue os arquivos versionados corretamente.
+          artifacts: "sesi_downloader-*-linux-x86_64.AppImage,sesi_downloader-*-windows-x86_64.zip"
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
