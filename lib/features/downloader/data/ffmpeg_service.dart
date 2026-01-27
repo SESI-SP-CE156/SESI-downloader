@@ -22,10 +22,8 @@ class FfmpegService {
       return ('assets/bin/ffmpeg.exe', 'ffmpeg.exe');
     } else if (Platform.isLinux) {
       return ('assets/bin/ffmpeg', 'ffmpeg');
-    } else if (Platform.isMacOS) {
-      // Caso queira suportar Mac futuramente
-      return ('assets/bin/ffmpeg_mac', 'ffmpeg');
     }
+
     throw Exception("Sistema operacional não suportado para FFmpeg embutido.");
   }
 

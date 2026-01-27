@@ -40,8 +40,10 @@ class YtDlpService {
   }
 
   Future<String> getExecutablePath() async {
-    // No Linux, verifica Python antes de qualquer coisa
-    await _pythonService.ensurePythonInstalled();
+    // 1. Garantir Python APENAS no Linux
+    if (Platform.isLinux) {
+      await _pythonService.ensurePythonInstalled();
+    }
 
     if (_isExtracting) return _extractionCompleter.future;
     if (_extractionCompleter.isCompleted) return _extractionCompleter.future;
@@ -54,37 +56,38 @@ class YtDlpService {
       final exePath = '${docDir.path}${Platform.pathSeparator}${names.$2}';
       final file = File(exePath);
 
+      // Lógica robusta: Verificar existência e validade
       bool needsExtraction = true;
 
-      if (!await file.exists()) {
+      if (await file.exists()) {
+        // Se o arquivo existe, verificamos se ele realmente funciona
         final isValid = await _isBinaryValid(exePath);
-
         if (isValid) {
           needsExtraction = false;
           debugPrint("Binário yt-dlp verificado e válido: $exePath");
         } else {
-          debugPrint(
-            "Binário yt-dlp corrompido ou inválido. Removendo para re-extraír...",
-          );
+          debugPrint("Binário corrompido. Removendo para re-extrair...");
           await file.delete();
-          needsExtraction = true;
         }
+      }
 
-        if (needsExtraction) {
-          if (!await docDir.exists()) await docDir.create(recursive: true);
+      if (needsExtraction) {
+        if (!await docDir.exists()) await docDir.create(recursive: true);
 
-          debugPrint("Extraindo yt-dlp para: $exePath");
+        debugPrint("Extraindo yt-dlp para: $exePath");
+        final byteData = await rootBundle.load(names.$1);
 
-          final byteData = await rootBundle.load(names.$1);
-          final buffer = byteData.buffer;
-          await file.writeAsBytes(
-            buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes),
-            flush: true,
-          );
+        // Escrita direta e segura
+        await file.writeAsBytes(
+          byteData.buffer.asUint8List(
+            byteData.offsetInBytes,
+            byteData.lengthInBytes,
+          ),
+          flush: true,
+        );
 
-          if (Platform.isLinux || Platform.isMacOS) {
-            await Process.run('chmod', ['+x', exePath]);
-          }
+        if (Platform.isLinux || Platform.isMacOS) {
+          await Process.run('chmod', ['+x', exePath]);
         }
       }
 
@@ -94,7 +97,10 @@ class YtDlpService {
       return exePath;
     } catch (e) {
       _isExtracting = false;
+      // Se houver erro, resetamos o completer para permitir nova tentativa
       throw Exception("Erro ao preparar yt-dlp: $e");
+    } finally {
+      _isExtracting = false;
     }
   }
 }
