@@ -54,4 +54,4 @@ final class YoutubeRepositoryProvider
   }
 }
 
-String _$youtubeRepositoryHash() => r'105d86abd9001e31cd6ea6d36b8b6cce7979b65a';
+String _$youtubeRepositoryHash() => r'a600b91790005b02df2a56768b370343e0729164';
