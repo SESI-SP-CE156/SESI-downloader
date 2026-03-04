@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sesi_downloader/features/downloader/data/deno_service.dart';
@@ -112,10 +113,12 @@ class YoutubeRepository {
       // Se não tiver Deno, o download pode falhar em vídeos novos
     }
 
+    final outputPath = p.join(directory.path, '%(title)s.%(ext)s');
+
     final args = [
       url,
       '-o',
-      '"${directory.path}/%(title)s.%(ext)s"',
+      outputPath,
       '--format',
       formatSelector,
       '--merge-output-format',
