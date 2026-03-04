@@ -18,12 +18,26 @@ class HomeScreen extends HookConsumerWidget {
     final downloadList = ref.watch(downloadListProvider);
 
     ref.listen<List<DownloadItem>>(downloadListProvider, (previous, next) {
+      if (previous == null) return;
+
       for (final newItem in next) {
-        final oldItem = previous?.firstWhere(
+        final oldItem = previous.firstWhere(
           (e) => e.id == newItem.id,
           orElse: () => newItem,
         );
-        if (newItem.isCompleted && (oldItem != null && !oldItem.isCompleted)) {
+
+        if (newItem.status == DownloadStatus.error &&
+            oldItem.status != DownloadStatus.error) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Falha: ${newItem.title} - ${newItem.error}'),
+              backgroundColor: Colors.red[700],
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+
+        if (newItem.isCompleted && (!oldItem.isCompleted)) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Download concluído: ${newItem.title}'),

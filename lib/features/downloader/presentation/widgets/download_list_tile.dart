@@ -35,7 +35,7 @@ class DownloadListTile extends StatelessWidget {
                           width: 55.sp,
                           height: 45.sp,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _buildPlaceholder(),
+                          errorBuilder: (_, _, _) => _buildPlaceholder(),
                         )
                         : _buildPlaceholder(),
               ),
@@ -208,6 +208,12 @@ class DownloadListTile extends StatelessWidget {
           style: TextStyle(color: Colors.grey, fontSize: 10.sp),
         );
       case DownloadStatus.downloading:
+      case DownloadStatus.error:
+        return Text(
+          "Erro: ${item.error}", // Já exibe a mensagem de erro no tile
+          style: TextStyle(color: Colors.red, fontSize: 10.sp),
+          maxLines: 1,
+        );
       default:
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,

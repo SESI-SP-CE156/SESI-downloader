@@ -115,7 +115,7 @@ class YoutubeRepository {
     final args = [
       url,
       '-o',
-      '${directory.path}/%(title)s.%(ext)s',
+      '"${directory.path}/%(title)s.%(ext)s"',
       '--format',
       formatSelector,
       '--merge-output-format',
@@ -130,20 +130,42 @@ class YoutubeRepository {
       '--force-overwrites',
     ];
 
+    final Map<String, String> environment = Map<String, String>.from(
+      Platform.environment,
+    );
+
+    if (denoPath != null) {
+      final denoDir = File(denoPath).parent.path;
+      final currentPath = environment['PATH'] ?? '';
+      environment['PATH'] =
+          '$denoDir${Platform.isWindows ? ';' : ':'}$currentPath';
+    }
+
     print('Executando: $ytPath ${args.join(" ")}');
 
-    final process = await Process.start(
-      ytPath,
-      args,
-      environment:
-          denoPath != null
-              ? {
-                'PATH':
-                    '${File(denoPath).parent.path}${Platform.isWindows ? ';' : ':'}${Platform.environment['PATH']}',
-              }
-              : null,
-    );
-    cancelToken.process = process;
+    Process? process;
+
+    try {
+      process = await Process.start(
+        ytPath,
+        args,
+        environment: environment,
+        runInShell: Platform.isWindows,
+      );
+      cancelToken.process = process;
+
+      process.stderr
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen((line) {
+            print(
+              "yt-dlp stderr: $line",
+            ); // Apenas logamos para manter o buffer livre
+          });
+    } catch (e) {
+      print("Erro crítico ao iniciar o processo yt-dlp: $e");
+      throw Exception("Falha ao iniciar yt-dlp: $e");
+    }
 
     // Regex atualizado para pegar Tamanho (Size)
     // Ex: [download]  45.0% of 23.45MiB at  2.00MiB/s ETA 00:05

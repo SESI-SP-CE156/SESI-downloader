@@ -1,5 +1,8 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'deno_service.g.dart';
@@ -17,35 +20,54 @@ DenoService denoService(Ref ref) {
 }
 
 class DenoService {
+  final Dio _dio = Dio();
+
+  Future<String> _getLocalDenoPath() async {
+    final dir = await getApplicationSupportDirectory();
+    return '${dir.path}${Platform.pathSeparator}deno${Platform.isWindows ? '.exe' : ''}';
+  }
+
   /// Verifica se o Deno está instalado e retorna o caminho do executável.
   /// Se não estiver, lança uma exceção orientando o usuário.
   Future<String> getDenoPathOrThrow() async {
+    final localPath = await _getLocalDenoPath();
+    if (await File(localPath).exists()) {
+      return localPath;
+    }
     // 1. Tenta encontrar no PATH global (comando 'deno')
     if (await _checkDenoVersion('deno')) {
       return 'deno';
     }
 
-    // 2. Tenta encontrar no caminho padrão (~/.deno/bin/deno)
-    final standardPath = _getStandardDenoPath();
-    if (await _checkDenoVersion(standardPath)) {
-      return standardPath;
-    }
-
-    // 3. Se não encontrar, lança erro para a UI tratar
-    throw DenoMissingException(
-      "O Deno (ambiente JS) é necessário para baixar vídeos protegidos.\n"
-      "Por favor, instale-o em https://deno.com/deploy ou via terminal:\n"
-      "${Platform.isWindows ? 'irm https://deno.land/install.ps1 | iex' : 'curl -fsSL https://deno.land/install.sh | sh'}",
-    );
+    throw Exception("Deno não encontrado.");
   }
 
-  String _getStandardDenoPath() {
-    final home =
-        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
-    if (home == null) return 'deno';
+  Future<void> installDeno() async {
+    ProcessResult result;
 
-    final exe = Platform.isWindows ? 'deno.exe' : 'deno';
-    return '$home/.deno/bin/$exe';
+    if (Platform.isLinux) {
+      debugPrint("Instalando Deno no Linux...");
+      // Executa via shell para suportar o pipe (|)
+      result = await Process.run('sh', [
+        '-c',
+        'curl -fsSL https://deno.land/install.sh | sh',
+      ]);
+    } else if (Platform.isWindows) {
+      debugPrint("Instalando Deno no Windows...");
+      // Executa via PowerShell para suportar o pipe (|)
+      result = await Process.run('powershell', [
+        '-Command',
+        'irm https://deno.land/install.ps1 | iex',
+      ]);
+    } else {
+      throw UnsupportedError("Instalação automática não suportada neste SO.");
+    }
+
+    if (result.exitCode != 0) {
+      throw Exception("Falha na instalação do Deno: ${result.stderr}");
+    }
+
+    debugPrint("Deno instalado com sucesso.");
   }
 
   Future<bool> _checkDenoVersion(String executable) async {

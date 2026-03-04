@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:sesi_downloader/core/router/router.dart';
 import 'package:sesi_downloader/core/theme/app_theme.dart';
+import 'package:sesi_downloader/features/downloader/data/deno_service.dart';
 import 'package:sesi_downloader/features/downloader/data/yt_dlp_service.dart';
 import 'package:sizer/sizer.dart';
 import 'package:window_manager/window_manager.dart';
@@ -30,19 +31,37 @@ void main() async {
   // assim que o app abrir, reduzindo o comportamento de "bot" nas requisições.
   final container = ProviderContainer();
 
-  final ytDlpService = container.read(ytDlpServiceProvider);
-
-  try {
-    debugPrint("Iniciando verificação de atualização do yt-dlp...");
-    ytDlpService.updateBinary().catchError(
-      (e) => debugPrint("Erro silencioso: $e"),
-    );
-  } catch (e, stack) {
-    // Não paramos o app se a atualização falhar (ex: sem internet)
-    debugPrint("Erro ao atualizar o yt-dlp na inicialização: $e");
-  }
+  await _ensureDependencies(container);
 
   runApp(UncontrolledProviderScope(container: container, child: MainApp()));
+}
+
+Future<void> _ensureDependencies(ProviderContainer container) async {
+  final ytDlpService = container.read(ytDlpServiceProvider);
+  final denoService = container.read(denoServiceProvider);
+
+  // 1. Verificar/Atualizar yt-dlp
+  try {
+    debugPrint("Verificando atualizações do yt-dlp...");
+    await ytDlpService.updateBinary();
+  } catch (e) {
+    debugPrint("Falha ao atualizar yt-dlp (pode estar offline): $e");
+  }
+
+  // 2. Verificar/Instalar Deno
+  try {
+    debugPrint("Verificando instalação do Deno...");
+    await denoService.getDenoPathOrThrow();
+    debugPrint("Deno já está instalado.");
+  } catch (e) {
+    debugPrint("Deno não encontrado. Iniciando instalação automática...");
+    try {
+      await denoService.installDeno();
+      debugPrint("Deno instalado com sucesso.");
+    } catch (installError) {
+      debugPrint("Erro crítico ao instalar Deno: $installError");
+    }
+  }
 }
 
 class MainApp extends ConsumerWidget {

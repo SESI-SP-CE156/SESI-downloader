@@ -56,7 +56,13 @@ class DownloadList extends _$DownloadList {
 
       _checkQueue();
     } catch (e) {
-      state = state.where((item) => item.id != tempId).toList();
+      _updateItem(
+        tempId,
+        (item) => item.copyWith(
+          status: DownloadStatus.error,
+          error: "Erro ao buscar informações: ${e.toString()}",
+        ),
+      );
       print("Erro ao adicionar: $e");
     }
   }
