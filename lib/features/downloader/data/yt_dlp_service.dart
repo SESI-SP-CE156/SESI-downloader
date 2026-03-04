@@ -39,6 +39,30 @@ class YtDlpService {
     }
   }
 
+  Future<void> updateBinary() async {
+    try {
+      debugPrint("Verificando/Iniciando atualização do yt-dlp...");
+
+      // Obtemos o caminho do executável que já estamos usando
+      final ytPath = await getExecutablePath();
+
+      // Executa o comando de atualização oficial
+      final result = await Process.run(ytPath, ['--update-to', 'stable']);
+
+      if (result.exitCode == 0) {
+        debugPrint("yt-dlp atualizado com sucesso: ${result.stdout}");
+      } else {
+        // Logamos o erro vindo do binário
+        throw Exception(
+          "Erro ao atualizar yt-dlp via comando interno: ${result.stderr}",
+        );
+      }
+    } catch (e) {
+      debugPrint("Falha na atualização: $e");
+      rethrow;
+    }
+  }
+
   Future<String> getExecutablePath() async {
     // 1. Garantir Python APENAS no Linux
     if (Platform.isLinux) {
