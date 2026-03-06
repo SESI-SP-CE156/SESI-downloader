@@ -193,7 +193,7 @@ class DownloadListTile extends StatelessWidget {
         );
       case DownloadStatus.error:
         return Text(
-          "Erro: ${item.error}",
+          "Erro: ${item.error ?? 'Erro desconhecido'}",
           style: TextStyle(color: Colors.red, fontSize: 10.sp),
           maxLines: 1,
         );
@@ -207,13 +207,9 @@ class DownloadListTile extends StatelessWidget {
           "Cancelado",
           style: TextStyle(color: Colors.grey, fontSize: 10.sp),
         );
-      case DownloadStatus.downloading:
-      case DownloadStatus.error:
-        return Text(
-          "Erro: ${item.error}", // Já exibe a mensagem de erro no tile
-          style: TextStyle(color: Colors.red, fontSize: 10.sp),
-          maxLines: 1,
-        );
+
+      // O DownloadStatus.downloading foi removido daqui para cair no 'default'
+      // e exibir a barra de progresso corretamente.
       default:
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:sesi_downloader/core/router/router.dart';
 import 'package:sesi_downloader/core/theme/app_theme.dart';
+import 'package:sesi_downloader/features/downloader/data/browser_detection_service.dart';
 import 'package:sesi_downloader/features/downloader/data/deno_service.dart';
 import 'package:sesi_downloader/features/downloader/data/yt_dlp_service.dart';
 import 'package:sizer/sizer.dart';
@@ -14,6 +15,8 @@ void main() async {
 
   WindowOptions windowOptions = const WindowOptions(
     size: Size(1024, 768),
+    minimumSize: Size(800, 600),
+    maximumSize: Size(1280, 1024),
     center: true,
     backgroundColor: Colors.transparent,
     skipTaskbar: false,
@@ -61,6 +64,14 @@ Future<void> _ensureDependencies(ProviderContainer container) async {
     } catch (installError) {
       debugPrint("Erro crítico ao instalar Deno: $installError");
     }
+  }
+
+  // 3. Detectar navegadores automaticamente
+  try {
+    debugPrint("Detectando navegadores instalados...");
+    await container.read(browserDetectionProvider.notifier).detect();
+  } catch (e) {
+    debugPrint("Erro ao detectar navegadores: $e");
   }
 }
 

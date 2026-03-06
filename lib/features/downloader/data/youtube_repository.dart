@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:sesi_downloader/features/downloader/data/browser_detection_service.dart';
 import 'package:sesi_downloader/features/downloader/data/deno_service.dart';
 import 'package:sesi_downloader/features/downloader/data/ffmpeg_service.dart';
 import 'package:sesi_downloader/features/downloader/data/yt_dlp_service.dart';
@@ -42,6 +43,7 @@ class DownloadProgressEvent {
 @Riverpod(keepAlive: true)
 YoutubeRepository youtubeRepository(Ref ref) {
   return YoutubeRepository(
+    ref,
     ref.read(ytDlpServiceProvider),
     ref.read(ffmpegServiceProvider),
     ref.read(denoServiceProvider),
@@ -49,11 +51,18 @@ YoutubeRepository youtubeRepository(Ref ref) {
 }
 
 class YoutubeRepository {
+  final Ref ref;
   final YtDlpService _ytDlpService;
   final FfmpegService _ffmpegService;
   final DenoService _denoService;
+  String? _cachedBrowser;
 
-  YoutubeRepository(this._ytDlpService, this._ffmpegService, this._denoService);
+  YoutubeRepository(
+    this.ref,
+    this._ytDlpService,
+    this._ffmpegService,
+    this._denoService,
+  );
 
   Future<VideoMetadata> getVideoInfo(String url) async {
     final ytPath = await _ytDlpService.getExecutablePath();
@@ -82,7 +91,23 @@ class YoutubeRepository {
     required DownloadQuality quality,
     required DownloadCancelToken cancelToken,
     required Function(String filePath) onPathDetermined,
+    String? browser,
   }) async* {
+    String? browserToUse = browser;
+
+    if (browserToUse == null) {
+      // Lê o estado atual do BrowserDetection
+      final detectedBrowsers = ref.read(browserDetectionProvider);
+
+      if (detectedBrowsers.isNotEmpty) {
+        // Pega o primeiro detectado automaticamente
+        browserToUse = detectedBrowsers.first;
+        print(
+          "Nenhum navegador especificado. Usando detectado automaticamente: $browserToUse",
+        );
+      }
+    }
+
     final ytPath = await _ytDlpService.getExecutablePath();
     final ffmpegPath = await _ffmpegService.ensureFfmpegExtracted();
 
@@ -125,11 +150,15 @@ class YoutubeRepository {
       'mkv',
       '--ffmpeg-location',
       ffmpegPath,
+      if (browserToUse != null && browserToUse.isNotEmpty) ...[
+        '--cookies-from-browser',
+        browserToUse,
+      ],
       '--no-playlist',
       '--newline',
       '--progress',
-      '--extractor-args',
-      'youtube:player_client=android,ios;player_skip=webpage,configs',
+      // '--extractor-args',
+      // 'youtube:player_client=android,ios;player_skip=webpage,configs',
       '--force-overwrites',
     ];
 

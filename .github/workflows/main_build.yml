@@ -38,7 +38,7 @@ jobs:
         with:
           channel: "stable"
           cache: true
-      
+
       # --- DEPENDÊNCIAS DO LINUX ---
       - name: Install Linux Dependencies
         if: matrix.os == 'ubuntu-latest'
@@ -48,6 +48,15 @@ jobs:
 
       - name: Install Project Dependencies
         run: flutter pub get
+
+      - name: Update pubspec.yaml version
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            powershell -Command "(Get-Content pubspec.yaml) -replace '^version: .*', 'version: 1.0.${{ github.run_number }}' | Set-Content pubspec.yaml"
+          else
+            sed -i 's/^version: .*/version: 1.0.${{ github.run_number }}/g' pubspec.yaml
+          fi
 
       - name: Run Build Runner
         run: dart run build_runner build --delete-conflicting-outputs
@@ -110,19 +119,18 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: flutter build windows --release
 
-      - name: Compress Windows Build
+      - name: Build Installer (Inno Setup)
         if: matrix.os == 'windows-latest'
-        # --- ALTERAÇÃO AQUI: Nome do Zip com versão ---
         run: |
-          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.zip
+          choco install innosetup -y
+          iscc installer.iss
 
       - name: Upload Windows Artifact
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
-          # Caminho atualizado com a versão
-          path: sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.zip
+          path: bin\SESI_Downloader_Setup-v1.0.${{ github.run_number }}.exe
 
   # ===================================================
   # JOB 2: RELEASE
@@ -144,7 +152,7 @@ jobs:
         id: info
         run: |
           echo "VERSION=v1.0.${{ github.run_number }}" >> $GITHUB_OUTPUT
-          
+
           echo "### 🚀 Build v1.0.${{ github.run_number }}" > release_body.md
           echo "" >> release_body.md
           echo "**Commit:** ${{ github.sha }}" >> release_body.md
