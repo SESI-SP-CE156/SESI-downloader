@@ -9,8 +9,5 @@ Compression=lzma
 SolidCompression=yes
 
 [Files]
-Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: recursesubdir createallsubdirs
-
-[Icons]
-Name: "{group}\SESI Downloader"; Filename: "{app}\sesi_downloader.exe"
-Name: "{autodesktop}\SESI Downloader"; Filename: "{app}\sesi_downloader.exe"
+; Usar .\ garante que ele busque a partir da raiz do repositório
+Source: ".\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: recursesubdir createallsubdirs

@@ -119,6 +119,16 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: flutter build windows --release
 
+      - name: Debug Windows Build Files
+        if: matrix.os == 'windows-latest'
+        run: dir build\windows\x64\runner\Release\
+        shell: cmd
+
+      - name: Find Build Files
+        if: matrix.os == 'windows-latest'
+        run: dir /s /b build\*exe
+        shell: cmd
+
       - name: Build Installer (Inno Setup)
         if: matrix.os == 'windows-latest'
         run: |
