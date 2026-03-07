@@ -10,9 +10,6 @@ permissions:
   contents: write
 
 jobs:
-  # ===================================================
-  # JOB 1: BUILD (Matriz Windows e Linux)
-  # ===================================================
   build:
     name: Build for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -25,7 +22,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          lfs: true # MANTIDO: Essencial para baixar os binários reais (ffmpeg/yt-dlp)
+          lfs: true
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -39,7 +36,6 @@ jobs:
           channel: "stable"
           cache: true
 
-      # --- DEPENDÊNCIAS DO LINUX ---
       - name: Install Linux Dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -69,15 +65,10 @@ jobs:
       - name: Create AppImage (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          # 1. Baixar ferramenta de deploy
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
-
-          # 2. Preparar estrutura AppDir
           mkdir -p AppDir/usr/bin
           cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
-
-          # 3. Criar arquivo .desktop
           cat > sesi_downloader.desktop <<EOF
           [Desktop Entry]
           Name=SESI Downloader
@@ -86,24 +77,7 @@ jobs:
           Type=Application
           Categories=Utility;Network;
           EOF
-
-          # 4. Configurar Ícone
-          if [ -f "linux/runner/resources/application_icon.png" ]; then
-            cp linux/runner/resources/application_icon.png sesi_downloader.png
-          else
-            wget -q -O sesi_downloader.png https://storage.googleapis.com/cms-storage-bucket/0dbfcc7a59cd1cf16282.png
-          fi
-          convert sesi_downloader.png -resize 256x256! sesi_downloader.png
-
-          # 5. Gerar AppImage
-          ./linuxdeploy-x86_64.AppImage \
-            --appdir AppDir \
-            --executable AppDir/usr/bin/sesi_downloader \
-            --desktop-file sesi_downloader.desktop \
-            --icon-file sesi_downloader.png \
-            --output appimage
-
-          # --- ALTERAÇÃO AQUI: Renomear usando a versão ---
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --executable AppDir/usr/bin/sesi_downloader --desktop-file sesi_downloader.desktop --output appimage
           mv SESI_Downloader*.AppImage sesi_downloader-v1.0.${{ github.run_number }}-linux-x86_64.AppImage
 
       - name: Upload Linux Artifact
@@ -111,7 +85,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-build
-          # Caminho atualizado com a versão
           path: sesi_downloader-v1.0.${{ github.run_number }}-linux-x86_64.AppImage
 
       # --- BUILD WINDOWS ---
@@ -119,34 +92,21 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: flutter build windows --release
 
-      - name: Debug Windows Build Files
-        if: matrix.os == 'windows-latest'
-        run: dir build\windows\x64\runner\Release\
-        shell: cmd
-
-      - name: Find Build Files
-        if: matrix.os == 'windows-latest'
-        run: dir /s /b build\*exe
-        shell: cmd
-
-      - name: Build Installer (Inno Setup)
+      - name: Build Installer (Inno Bundle)
         if: matrix.os == 'windows-latest'
         run: |
           choco install innosetup -y
-          # Converte o arquivo para formato Windows antes de compilar
-          powershell -Command "(Get-Content installer.iss) -join \"`r`n\" | Set-Content installer.iss"
-          iscc installer.iss
+          dart run inno_bundle
+          # Renomeia para um padrão consistente que o Release Job vai encontrar
+          mv bin/SESI_Downloader_Setup.exe bin/sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.exe
 
       - name: Upload Windows Artifact
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
-          path: bin\SESI_Downloader_Setup-v1.0.${{ github.run_number }}.exe
+          path: bin\sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.exe
 
-  # ===================================================
-  # JOB 2: RELEASE
-  # ===================================================
   release:
     needs: build
     runs-on: ubuntu-latest
@@ -164,7 +124,6 @@ jobs:
         id: info
         run: |
           echo "VERSION=v1.0.${{ github.run_number }}" >> $GITHUB_OUTPUT
-
           echo "### 🚀 Build v1.0.${{ github.run_number }}" > release_body.md
           echo "" >> release_body.md
           echo "**Commit:** ${{ github.sha }}" >> release_body.md
@@ -177,8 +136,7 @@ jobs:
           tag: ${{ steps.info.outputs.VERSION }}
           name: Release ${{ steps.info.outputs.VERSION }}
           bodyFile: release_body.md
-          # O * (wildcard) vai pegar qualquer arquivo que corresponda ao padrão,
-          # garantindo que pegue os arquivos versionados corretamente.
-          artifacts: "sesi_downloader-*-linux-x86_64.AppImage,sesi_downloader-*-windows-x86_64.zip"
+          # CORREÇÃO: Usamos o nome exato dos arquivos que subimos nos uploads anteriores
+          artifacts: "sesi_downloader-v1.0.${{ github.run_number }}-linux-x86_64.AppImage,sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.exe"
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
