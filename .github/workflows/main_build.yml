@@ -133,6 +133,8 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           choco install innosetup -y
+          # Converte o arquivo para formato Windows antes de compilar
+          powershell -Command "(Get-Content installer.iss) -join \"`r`n\" | Set-Content installer.iss"
           iscc installer.iss
 
       - name: Upload Windows Artifact
