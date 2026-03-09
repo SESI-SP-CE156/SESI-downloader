@@ -140,8 +140,9 @@ jobs:
       - name: Prepare Windows Artifacts
         if: matrix.os == 'windows-latest'
         run: |
-          # Move o instalador para a raiz para facilitar o upload sem criar subpastas no artefato
-          Move-Item -Path "build\windows\x64\installer\Release\sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.exe" -Destination "sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.exe"
+          # Utiliza curinga (*.exe) para capturar o instalador independentemente do nome padrão do inno_bundle
+          # e padroniza o nome do arquivo na raiz do repositório
+          Move-Item -Path "build\windows\x64\installer\Release\*.exe" -Destination "sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.exe"
 
       - name: Upload Windows Artifact
         if: matrix.os == 'windows-latest'
