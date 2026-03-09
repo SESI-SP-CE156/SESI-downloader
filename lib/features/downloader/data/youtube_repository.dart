@@ -176,6 +176,7 @@ class YoutubeRepository {
     print('Executando: $ytPath ${args.join(" ")}');
 
     Process? process;
+    final errorBuffer = StringBuffer();
 
     try {
       process = await Process.start(
@@ -190,9 +191,8 @@ class YoutubeRepository {
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen((line) {
-            print(
-              "yt-dlp stderr: $line",
-            ); // Apenas logamos para manter o buffer livre
+            print("yt-dlp stderr: $line");
+            errorBuffer.writeln(line);
           });
     } catch (e) {
       print("Erro crítico ao iniciar o processo yt-dlp: $e");
@@ -280,7 +280,7 @@ class YoutubeRepository {
 
     final exitCode = await process.exitCode;
     if (exitCode != 0 && !cancelToken.isCancelled) {
-      final error = await process.stderr.transform(utf8.decoder).join();
+      final error = errorBuffer.toString();
       throw Exception("Erro no yt-dlp (Code $exitCode): $error");
     }
   }
