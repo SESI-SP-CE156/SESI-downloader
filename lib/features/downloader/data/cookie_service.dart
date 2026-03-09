@@ -24,22 +24,30 @@ class CookieService extends _$CookieService {
     buffer.writeln("# Netscape HTTP Cookie File");
 
     for (var cookie in cookies) {
-      final domain = cookie['domain'] ?? '.youtube.com';
+      final domain = (cookie['domain'] ?? '.youtube.com').toString();
+      final path = (cookie['path'] ?? '/').toString();
+      final name = (cookie['name'] ?? '').toString().replaceAll(
+        RegExp(r'[\r\n\t]'),
+        '',
+      );
+      final value = (cookie['value'] ?? '').toString().replaceAll(
+        RegExp(r'[\r\n\t]'),
+        '',
+      );
+
       final includeSubdomains = 'TRUE';
-      final path = cookie['path'] ?? '/';
       final secure = cookie['isSecure'] == true ? 'TRUE' : 'FALSE';
       final expiry =
           cookie['expiresDate'] != null
               ? (cookie['expiresDate'] as num).toInt().toString()
               : '0';
-      final name = cookie['name'];
-      final value = cookie['value'];
 
+      // Escreve garantindo que não há caracteres de controle que quebrem o parser
       buffer.writeln(
         '$domain\t$includeSubdomains\t$path\t$secure\t$expiry\t$name\t$value',
       );
     }
 
-    await file.writeAsString(buffer.toString());
+    await file.writeAsString(buffer.toString(), flush: true);
   }
 }

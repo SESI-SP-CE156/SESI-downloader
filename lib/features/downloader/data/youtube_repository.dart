@@ -185,7 +185,9 @@ class YoutubeRepository {
       cancelToken.process = process;
 
       process.stderr
-          .transform(utf8.decoder)
+          .transform(
+            const Utf8Decoder(allowMalformed: true),
+          ) // Permite caracteres inválidos
           .transform(const LineSplitter())
           .listen((line) {
             print("yt-dlp stderr: $line");
