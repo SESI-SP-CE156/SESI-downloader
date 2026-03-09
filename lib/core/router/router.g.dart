@@ -9,6 +9,39 @@ part of 'router.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 
+@ProviderFor(isFirstLaunch)
+final isFirstLaunchProvider = IsFirstLaunchProvider._();
+
+final class IsFirstLaunchProvider
+    extends $FunctionalProvider<AsyncValue<bool>, bool, FutureOr<bool>>
+    with $FutureModifier<bool>, $FutureProvider<bool> {
+  IsFirstLaunchProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'isFirstLaunchProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$isFirstLaunchHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<bool> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<bool> create(Ref ref) {
+    return isFirstLaunch(ref);
+  }
+}
+
+String _$isFirstLaunchHash() => r'8bf584629460f7f8fcb03c576e77b4417e6132af';
+
 @ProviderFor(goRouter)
 final goRouterProvider = GoRouterProvider._();
 
@@ -48,4 +81,4 @@ final class GoRouterProvider
   }
 }
 
-String _$goRouterHash() => r'09b87d5a9ff7b43c5118b1f9996a29dd499e7547';
+String _$goRouterHash() => r'15ff5e1922a44ae21067a99e2aaaaea5636038c0';

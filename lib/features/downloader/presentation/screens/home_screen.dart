@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:open_file/open_file.dart';
 import 'package:sesi_downloader/core/theme/app_theme.dart';
@@ -73,6 +76,15 @@ class HomeScreen extends HookConsumerWidget {
             const Text('SESI Downloader'),
           ],
         ),
+        actions: [
+          // Botão aparece apenas no Windows
+          if (Platform.isWindows)
+            IconButton(
+              icon: const Icon(Icons.login),
+              tooltip: "Login no YouTube",
+              onPressed: () => context.push('/login'),
+            ),
+        ],
       ),
       body: Padding(
         padding: EdgeInsets.all(16.sp),
