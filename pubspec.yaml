@@ -43,4 +43,4 @@ inno_bundle:
   publisher: SESI-SP CE 156 # Optional, but recommended.
   admin: auto
   arch: x64_compatible
-  languages: brazilianportuguese
+  updates_url: https://github.com/flutter/flutter/releases

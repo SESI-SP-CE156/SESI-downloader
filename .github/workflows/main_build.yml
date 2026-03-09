@@ -117,16 +117,26 @@ jobs:
       # --- BUILD WINDOWS ---
       - name: Build Windows
         if: matrix.os == 'windows-latest'
-        run: flutter build windows --release
+        run: |
+          flutter config --enable-windows-desktop
+          flutter build windows --release
 
-      - name: Build Windows and Generate Installer (Inno Bundle)
+      - name: Generate Installer (Inno Bundle)
         if: matrix.os == 'windows-latest'
         run: |
           winget install --id JRSoftware.InnoSetup --silent --accept-package-agreements --accept-source-agreements
-
           dart run inno_bundle:build --release
-          # Renomeia para um padrão consistente que o Release Job vai encontrar
-          mv bin/SESI_Downloader_Setup.exe bin/sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.exe
+
+      - name: Prepare Artifact
+        if: matrix.os == 'windows-latest'
+        run: |
+          # Verifica se o arquivo foi gerado antes de mover
+          if (Test-Path "bin/SESI_Downloader_Setup.exe") {
+            mv bin/SESI_Downloader_Setup.exe bin/sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.exe
+          } else {
+            Write-Error "O instalador não foi encontrado em bin/SESI_Downloader_Setup.exe"
+            exit 1
+          }
 
       - name: Upload Windows Artifact
         if: matrix.os == 'windows-latest'
