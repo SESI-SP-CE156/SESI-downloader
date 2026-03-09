@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sesi_downloader/features/downloader/data/browser_detection_service.dart';
+import 'package:sesi_downloader/features/downloader/data/cookie_service.dart';
 import 'package:sesi_downloader/features/downloader/data/deno_service.dart';
 import 'package:sesi_downloader/features/downloader/data/ffmpeg_service.dart';
 import 'package:sesi_downloader/features/downloader/data/yt_dlp_service.dart';
@@ -93,21 +94,6 @@ class YoutubeRepository {
     required Function(String filePath) onPathDetermined,
     String? browser,
   }) async* {
-    String? browserToUse = browser;
-
-    if (browserToUse == null) {
-      // Lê o estado atual do BrowserDetection
-      final detectedBrowsers = ref.read(browserDetectionProvider);
-
-      if (detectedBrowsers.isNotEmpty) {
-        // Pega o primeiro detectado automaticamente
-        browserToUse = detectedBrowsers.first;
-        print(
-          "Nenhum navegador especificado. Usando detectado automaticamente: $browserToUse",
-        );
-      }
-    }
-
     final ytPath = await _ytDlpService.getExecutablePath();
     final ffmpegPath = await _ffmpegService.ensureFfmpegExtracted();
 
@@ -140,6 +126,20 @@ class YoutubeRepository {
 
     final outputPath = p.join(directory.path, '%(title)s.%(ext)s');
 
+    final cookieService = ref.read(cookieServiceProvider.notifier);
+    final cookieFile = await cookieService.getCookieFile();
+
+    List<String> cookieArgs = [];
+    if (await cookieFile.exists()) {
+      cookieArgs = ['--cookies', cookieFile.path];
+    } else {
+      // Fallback para o browser detection se não houver cookies manuais
+      final browser = ref.read(browserDetectionProvider).firstOrNull;
+      if (browser != null) {
+        cookieArgs = ['--cookies-from-browser', browser];
+      }
+    }
+
     final args = [
       url,
       '-o',
@@ -150,10 +150,7 @@ class YoutubeRepository {
       'mkv',
       '--ffmpeg-location',
       ffmpegPath,
-      if (browserToUse != null && browserToUse.isNotEmpty) ...[
-        '--cookies-from-browser',
-        browserToUse,
-      ],
+      ...cookieArgs,
       '--no-playlist',
       '--newline',
       '--progress',
