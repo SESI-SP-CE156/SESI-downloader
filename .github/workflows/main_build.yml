@@ -122,24 +122,35 @@ jobs:
           flutter build windows --release
 
       - name: Build iss script
+        if: matrix.os == 'windows-latest'
         run: dart run inno_bundle:build --no-app --release --no-installer
 
       - name: Output config into github output
+        if: matrix.os == 'windows-latest'
         id: envs
         # thanks to https://github.com/actions/runner/issues/2224#issuecomment-1289925992
         run: echo $(dart run inno_bundle:build --envs --no-hf) | Out-File -FilePath $Env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Build installer
+        if: matrix.os == 'windows-latest'
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: ./build/windows/x64/installer/Release/inno-script.iss
+
+      - name: Prepare Windows Artifacts
+        if: matrix.os == 'windows-latest'
+        run: |
+          # Move o instalador para a raiz para facilitar o upload sem criar subpastas no artefato
+          Move-Item -Path "build\windows\x64\installer\Release\sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.exe" -Destination "sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.exe"
 
       - name: Upload Windows Artifact
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
-          path: ./build/windows/x64/installer/Release/sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.exe
+          path: |
+            sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64.exe
+            sesi_downloader-v1.0.${{ github.run_number }}-windows-x86_64-portable.zip
 
   # ===================================================
   # JOB 2: RELEASE
@@ -176,6 +187,6 @@ jobs:
           bodyFile: release_body.md
           # O * (wildcard) vai pegar qualquer arquivo que corresponda ao padrão,
           # garantindo que pegue os arquivos versionados corretamente.
-          artifacts: "sesi_downloader-*-linux-x86_64.AppImage,sesi_downloader-*-windows-x86_64.zip"
+          artifacts: "sesi_downloader-*-linux-x86_64.AppImage,sesi_downloader-*-windows-x86_64.exe,sesi_downloader-*-windows-x86_64-portable.zip"
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
