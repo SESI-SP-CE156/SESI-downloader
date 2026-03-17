@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:open_file/open_file.dart';
 import 'package:sesi_downloader/core/theme/app_theme.dart';
+import 'package:sesi_downloader/features/downloader/data/cookie_service.dart';
 import 'package:sesi_downloader/features/downloader/data/update_service.dart';
 import 'package:sesi_downloader/features/downloader/domain/download_model.dart';
 import 'package:sesi_downloader/features/downloader/presentation/controllers/download_controller.dart';
@@ -20,6 +21,7 @@ class HomeScreen extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final urlController = useTextEditingController();
     final downloadList = ref.watch(downloadListProvider);
+    final isLoggedIn = ref.watch(cookieServiceProvider);
 
     useEffect(() {
       Future.microtask(
@@ -79,11 +81,24 @@ class HomeScreen extends HookConsumerWidget {
         actions: [
           // Botão aparece apenas no Windows
           if (Platform.isWindows)
-            IconButton(
-              icon: const Icon(Icons.login),
-              tooltip: "Login no YouTube",
-              onPressed: () => context.push('/login'),
-            ),
+            isLoggedIn
+                ? IconButton(
+                  icon: const Icon(Icons.logout, color: Colors.redAccent),
+                  tooltip: "Sair do YouTube",
+                  onPressed: () async {
+                    await ref.read(cookieServiceProvider.notifier).logout();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Você saiu da sua conta do YouTube.'),
+                      ),
+                    );
+                  },
+                )
+                : IconButton(
+                  icon: const Icon(Icons.login),
+                  tooltip: "Login no YouTube",
+                  onPressed: () => context.push('/login'),
+                ),
         ],
       ),
       body: Padding(

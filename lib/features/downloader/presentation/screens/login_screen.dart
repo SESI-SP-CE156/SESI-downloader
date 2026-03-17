@@ -16,29 +16,35 @@ class LoginScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text("Login YouTube")),
-      body: InAppWebView(
-        initialUrlRequest: URLRequest(url: WebUri("https://www.youtube.com")),
-        onLoadStop: (controller, url) async {
-          // Verifica se carregou o YouTube
-          if (url?.host.contains("youtube.com") ?? false) {
-            CookieManager cookieManager = CookieManager.instance();
-            List<Cookie> cookies = await cookieManager.getCookies(
-              url: WebUri("https://www.youtube.com"),
-            );
-
-            // Converte para o formato que o service espera
-            final cookieList = cookies.map((c) => c.toJson()).toList();
-            await ref
-                .read(cookieServiceProvider.notifier)
-                .saveCookies(cookieList);
-
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Login capturado com sucesso!")),
+      body: Container(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: InAppWebView(
+          initialSettings: InAppWebViewSettings(
+            transparentBackground: true, // Evita o flash branco
+          ),
+          initialUrlRequest: URLRequest(url: WebUri("https://www.youtube.com")),
+          onLoadStop: (controller, url) async {
+            // Verifica se carregou o YouTube
+            if (url?.host.contains("youtube.com") ?? false) {
+              CookieManager cookieManager = CookieManager.instance();
+              List<Cookie> cookies = await cookieManager.getCookies(
+                url: WebUri("https://www.youtube.com"),
               );
+
+              // Converte para o formato que o service espera
+              final cookieList = cookies.map((c) => c.toJson()).toList();
+              await ref
+                  .read(cookieServiceProvider.notifier)
+                  .saveCookies(cookieList);
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Login capturado com sucesso!")),
+                );
+              }
             }
-          }
-        },
+          },
+        ),
       ),
     );
   }

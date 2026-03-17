@@ -32,7 +32,10 @@ GoRouter goRouter(Ref ref) {
     },
     routes: [
       GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
-      GoRoute(path: '/login', builder: (context, state) => LoginScreen()),
+      GoRoute(
+        path: '/login',
+        pageBuilder: (context, state) => NoTransitionPage(child: LoginScreen()),
+      ),
     ],
   );
 }

@@ -1,7 +1,7 @@
 name: sesi_downloader
 description: "A new Flutter project."
 publish_to: "none"
-version: 1.0.9
+version: 1.0.23
 
 environment:
   sdk: ^3.7.0
@@ -43,6 +43,7 @@ flutter:
 inno_bundle:
   id: 7442e410-1a51-11f1-b2a7-459358f391fa # <-- Put your own generated id here
   publisher: SESI-SP CE 156 # Optional, but recommended.
+  name: SESI Downloader
   admin: auto
   arch: x64_compatible
   updates_url: https://github.com/SESI-SP-CE156/SESI-downloader/releases

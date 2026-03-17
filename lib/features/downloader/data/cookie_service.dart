@@ -9,7 +9,15 @@ part 'cookie_service.g.dart';
 @Riverpod(keepAlive: true)
 class CookieService extends _$CookieService {
   @override
-  void build() {}
+  bool build() {
+    _checkInitialStatus();
+    return false; // Valor padrão até a verificação terminar
+  }
+
+  Future<void> _checkInitialStatus() async {
+    final file = await getCookieFile();
+    state = await file.exists();
+  }
 
   Future<File> getCookieFile() async {
     final appDir = await getApplicationSupportDirectory();
@@ -49,5 +57,14 @@ class CookieService extends _$CookieService {
     }
 
     await file.writeAsString(buffer.toString(), flush: true);
+    state = true; // Atualiza o estado para logado
+  }
+
+  Future<void> logout() async {
+    final file = await getCookieFile();
+    if (await file.exists()) {
+      await file.delete();
+    }
+    state = false; // Atualiza o estado para deslogado
   }
 }
