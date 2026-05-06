@@ -3,6 +3,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:open_file/open_file.dart';
 import 'package:sesi_downloader/core/theme/app_theme.dart';
+import 'package:sesi_downloader/core/utils/time_input_formatter.dart';
 import 'package:sesi_downloader/features/downloader/data/update_service.dart';
 import 'package:sesi_downloader/features/downloader/domain/download_model.dart';
 import 'package:sesi_downloader/features/downloader/presentation/controllers/download_controller.dart';
@@ -124,22 +125,26 @@ class HomeScreen extends HookConsumerWidget {
                         Expanded(
                           child: TextField(
                             controller: startController,
+                            inputFormatters: [TimeInputFormatter()],
+                            keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
-                              labelText: 'Início (Opcional - Ex: 01:20)',
+                              labelText: 'Início',
+                              hintText: 'Padrão: 00:00',
                               prefixIcon: Icon(Icons.timer_outlined),
                             ),
-                            keyboardType: TextInputType.datetime,
                           ),
                         ),
                         SizedBox(width: 8.sp),
                         Expanded(
                           child: TextField(
                             controller: endController,
+                            inputFormatters: [TimeInputFormatter()],
+                            keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
-                              labelText: 'Fim (Opcional - Ex: 02:45)',
+                              labelText: 'Fim',
+                              hintText: 'Padrão: Final do vídeo',
                               prefixIcon: Icon(Icons.timer_off_outlined),
                             ),
-                            keyboardType: TextInputType.datetime,
                           ),
                         ),
                         SizedBox(width: 8.sp),

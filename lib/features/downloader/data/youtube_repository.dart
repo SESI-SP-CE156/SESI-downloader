@@ -105,41 +105,91 @@ class YoutubeRepository {
     final url = videoUrl;
     final Set<String> trackedFiles = {};
 
-    // 1. Identifica se o usuário quer fazer um corte de minutagem
+    double parseTime(String timeStr) {
+      if (timeStr.isEmpty) return 0.0;
+      final parts = timeStr.split(':').reversed.toList();
+      double secs = 0;
+      if (parts.isNotEmpty) secs += double.tryParse(parts[0]) ?? 0;
+      if (parts.length > 1) secs += (double.tryParse(parts[1]) ?? 0) * 60;
+      if (parts.length > 2) secs += (double.tryParse(parts[2]) ?? 0) * 3600;
+      return secs;
+    }
+
+    // 1. Extrai o número de bytes reais para podermos fazer o cálculo de velocidade
+    double parseSizeToBytes(String sizeStr) {
+      if (sizeStr == '?' || sizeStr.isEmpty) return 0.0;
+      final match = RegExp(r'([~\d\.]+)\s*([a-zA-Z]+)').firstMatch(sizeStr);
+      if (match == null) return 0.0;
+
+      final value = double.tryParse(match.group(1)!.replaceAll('~', '')) ?? 0.0;
+      final unit = match.group(2)!.toUpperCase();
+
+      if (unit.contains('K')) return value * 1024;
+      if (unit.contains('M')) return value * 1024 * 1024;
+      if (unit.contains('G')) return value * 1024 * 1024 * 1024;
+      return value;
+    }
+
+    // 2. Transforma o número em um texto amigável
+    String formatBytes(double bytes) {
+      if (bytes >= 1024 * 1024 * 1024) {
+        return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+      } else if (bytes >= 1024 * 1024) {
+        return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+      } else if (bytes >= 1024) {
+        return '${(bytes / 1024).toStringAsFixed(0)} KB';
+      } else {
+        return '${bytes.toStringAsFixed(0)} B';
+      }
+    }
+
     final bool isCutting =
         (startTime != null && startTime.trim().isNotEmpty) ||
         (endTime != null && endTime.trim().isNotEmpty);
 
-    String formatSelector;
+    double targetDuration = 0.0;
+    double startSecs = 0.0;
 
-    // 2. Lógica Dinâmica de Formato
     if (isCutting) {
-      // Se tiver corte, forçamos MP4 (H.264) para evitar o Segmentation Fault (-11) do FFmpeg no Linux
+      startSecs =
+          (startTime != null && startTime.trim().isNotEmpty)
+              ? parseTime(startTime.trim())
+              : 0.0;
+      double endSecs =
+          (endTime != null && endTime.trim().isNotEmpty)
+              ? parseTime(endTime.trim())
+              : 0.0;
+      if (endSecs > startSecs) {
+        targetDuration = endSecs - startSecs;
+      }
+    }
+
+    String formatSelector;
+    if (isCutting) {
       switch (quality) {
-        case DownloadQuality.good: // 720p
+        case DownloadQuality.good:
           formatSelector =
               'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]';
           break;
-        case DownloadQuality.great: // 1080p
+        case DownloadQuality.great:
           formatSelector =
               'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]';
           break;
-        case DownloadQuality.extreme: // Max
+        case DownloadQuality.extreme:
           formatSelector =
               'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best';
           break;
       }
     } else {
-      // Comportamento normal para o vídeo inteiro (livre para pegar o WebM de altíssima qualidade)
       switch (quality) {
-        case DownloadQuality.good: // 720p
+        case DownloadQuality.good:
           formatSelector = 'bestvideo[height<=720]+bestaudio/best[height<=720]';
           break;
-        case DownloadQuality.great: // 1080p
+        case DownloadQuality.great:
           formatSelector =
               'bestvideo[height<=1080]+bestaudio/best[height<=1080]';
           break;
-        case DownloadQuality.extreme: // Max
+        case DownloadQuality.extreme:
           formatSelector = 'bestvideo+bestaudio/best';
           break;
       }
@@ -148,16 +198,15 @@ class YoutubeRepository {
     String? denoPath;
     try {
       denoPath = await _denoService.getDenoPathOrThrow();
-    } catch (_) {
-      // Se não tiver Deno, o download pode falhar em vídeos novos
-    }
+    } catch (_) {}
 
     final outputPath = p.join(directory.path, '%(title)s.%(ext)s');
 
     List<String> cookieArgs = [];
-    final browser = ref.read(browserDetectionProvider).firstOrNull;
-    if (browser != null) {
-      cookieArgs = ['--cookies-from-browser', browser];
+    final browserName =
+        browser ?? ref.read(browserDetectionProvider).firstOrNull;
+    if (browserName != null) {
+      cookieArgs = ['--cookies-from-browser', browserName];
     }
 
     final args = [
@@ -186,14 +235,12 @@ class YoutubeRepository {
           (endTime != null && endTime.trim().isNotEmpty)
               ? endTime.trim()
               : 'inf';
-
       args.addAll(['--download-sections', '*$start-$end']);
     }
 
     final Map<String, String> environment = Map<String, String>.from(
       Platform.environment,
     );
-
     if (denoPath != null) {
       final denoDir = File(denoPath).parent.path;
       final currentPath = environment['PATH'] ?? '';
@@ -214,99 +261,195 @@ class YoutubeRepository {
         runInShell: Platform.isWindows,
       );
       cancelToken.process = process;
-
-      process.stderr
-          .transform(
-            const Utf8Decoder(allowMalformed: true),
-          ) // Permite caracteres inválidos
-          .transform(const LineSplitter())
-          .listen((line) {
-            print("yt-dlp stderr: $line");
-            errorBuffer.writeln(line);
-          });
     } catch (e) {
-      print("Erro crítico ao iniciar o processo yt-dlp: $e");
       throw Exception("Falha ao iniciar yt-dlp: $e");
     }
 
+    // Variáveis para rastrear a velocidade em MB/s
+    double lastBytes = 0.0;
+    DateTime lastTime = DateTime.now();
+    String currentSpeedDisplay = 'Calculando...';
+
+    // Unifica o stdout e stderr para podermos mandar os eventos para o yield
+    final controller = StreamController<DownloadProgressEvent>();
+    int completedStreams = 0;
+    void checkDone() {
+      completedStreams++;
+      if (completedStreams == 2) controller.close();
+    }
+
+    // REGEX: yt-dlp (Downloads Padrão)
     final fileRegex = RegExp(
       r'\[Merger\] Merging formats into "(.*?)"|\[download\] Destination: (.*?)$|\[download\] (.*?) has already been downloaded|\[ffmpeg\] Destination: (.*?)$',
     );
-
     final progressRegex = RegExp(
       r'\[download\]\s+(\d+\.?\d*)%\s+of\s+([~\d\.]+\w+)\s+at\s+(\S+)\s+ETA\s+(\S+)',
     );
 
-    try {
-      final stream = process.stdout
-          .transform(utf8.decoder)
-          .transform(const LineSplitter());
+    // REGEX: FFmpeg (Downloads com Minutagem / Cortes)
+    final ffmpegFileRegex = RegExp(r"Output #0, .*, to '(?:file:)?(.*?)':");
+    final ffmpegDurationRegex = RegExp(
+      r'Duration:\s+(\d{2}):(\d{2}):(\d{2}\.\d+)',
+    );
+    final ffmpegProgressRegex = RegExp(
+      r'size=\s*(\d+\w+)\s+time=(\d{2}):(\d{2}):(\d{2}\.\d+).*?speed=\s*([\d\.]+)x',
+    );
 
-      await for (final line in stream) {
-        if (cancelToken.isCancelled) {
-          process.kill(ProcessSignal.sigterm);
-          throw Exception("Cancelado pelo usuário.");
-        }
+    // LISTENER 1: Captura o FFmpeg no STDERR
+    process.stderr
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .transform(const LineSplitter())
+        .listen((line) {
+          errorBuffer.writeln(line);
 
-        // Detecta caminho final corrigido
-        final fileMatch = fileRegex.firstMatch(line);
-        if (fileMatch != null) {
-          // Pega o primeiro grupo que não for nulo (resolve o bug da captura)
-          final path =
-              (fileMatch.group(1) ??
-                      fileMatch.group(2) ??
-                      fileMatch.group(3) ??
-                      fileMatch.group(4))
-                  ?.replaceAll('"', '')
-                  .trim();
-
-          if (path != null && path.isNotEmpty) {
-            trackedFiles.add(path);
-            trackedFiles.add('$path.part');
-            trackedFiles.add('$path.temp');
-            onPathDetermined(path);
+          // Descobre onde o FFmpeg está salvando
+          final fileMatch = ffmpegFileRegex.firstMatch(line);
+          if (fileMatch != null) {
+            String path = fileMatch.group(1)?.replaceAll('"', '').trim() ?? '';
+            if (path.isNotEmpty) {
+              if (path.endsWith('.part'))
+                path = path.substring(0, path.length - 5);
+              trackedFiles.add(path);
+              trackedFiles.add('$path.part');
+              onPathDetermined(path);
+            }
           }
-        }
 
-        // Detecta progresso e tamanho
-        if (line.startsWith('[download]')) {
+          // Se o usuário não colocou "Fim", usamos o tempo total detectado pelo próprio stream do vídeo
+          if (targetDuration == 0.0) {
+            final durMatch = ffmpegDurationRegex.firstMatch(line);
+            if (durMatch != null) {
+              final h = int.parse(durMatch.group(1)!);
+              final m = int.parse(durMatch.group(2)!);
+              final s = double.parse(durMatch.group(3)!);
+              targetDuration = (h * 3600 + m * 60 + s) - startSecs;
+            }
+          }
+
+          // Converte o tempo lido em % de progresso
+          // Converte o tempo lido em % de progresso e calcula ETA e Velocidade
+          final progMatch = ffmpegProgressRegex.firstMatch(line);
+          if (progMatch != null) {
+            final sizeStr = progMatch.group(1);
+            final h = int.parse(progMatch.group(2)!);
+            final m = int.parse(progMatch.group(3)!);
+            final s = double.parse(progMatch.group(4)!);
+            final currentTime = h * 3600 + m * 60 + s;
+
+            final speedStr = progMatch.group(5) ?? '1.0';
+            final speedDouble = double.tryParse(speedStr) ?? 1.0;
+
+            // --- CÁLCULO DE VELOCIDADE REAL EM MB/S ---
+            final currentBytes = parseSizeToBytes(sizeStr ?? '');
+            final now = DateTime.now();
+            final diffSecs = now.difference(lastTime).inMilliseconds / 1000.0;
+
+            if (lastBytes == 0.0) {
+              lastBytes = currentBytes;
+              lastTime = now;
+            } else if (diffSecs >= 1.0) {
+              // Atualiza a cada 1 segundo para não piscar
+              if (currentBytes > lastBytes) {
+                final bytesPerSec = (currentBytes - lastBytes) / diffSecs;
+                currentSpeedDisplay = '${formatBytes(bytesPerSec)}/s';
+              }
+              lastBytes = currentBytes;
+              lastTime = now;
+            }
+            // ------------------------------------------
+
+            double percent = 0.0;
+            String calculatedEta = 'Calculando...';
+
+            if (targetDuration > 0) {
+              percent = (currentTime / targetDuration).clamp(0.0, 1.0);
+
+              final remainingDuration = targetDuration - currentTime;
+              if (speedDouble > 0 && remainingDuration > 0) {
+                final etaInSeconds = remainingDuration / speedDouble;
+                final minutes = (etaInSeconds / 60).floor();
+                final seconds = (etaInSeconds % 60).floor();
+                calculatedEta =
+                    '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+              } else if (remainingDuration <= 0) {
+                calculatedEta = '00:00';
+              }
+            }
+
+            controller.add(
+              DownloadProgressEvent(
+                progress: percent,
+                totalSize: formatBytes(currentBytes),
+                speed:
+                    currentSpeedDisplay, // Exibe a velocidade em MB/s ou KB/s
+                eta: calculatedEta,
+              ),
+            );
+          }
+        }, onDone: checkDone);
+
+    // LISTENER 2: Captura o YT-DLP no STDOUT
+    process.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+          if (cancelToken.isCancelled) return;
+
+          final fileMatch = fileRegex.firstMatch(line);
+          if (fileMatch != null) {
+            final path =
+                (fileMatch.group(1) ??
+                        fileMatch.group(2) ??
+                        fileMatch.group(3) ??
+                        fileMatch.group(4))
+                    ?.replaceAll('"', '')
+                    .trim();
+            if (path != null && path.isNotEmpty) {
+              trackedFiles.add(path);
+              trackedFiles.add('$path.part');
+              trackedFiles.add('$path.temp');
+              onPathDetermined(path);
+            }
+          }
+
           final match = progressRegex.firstMatch(line);
           if (match != null) {
             final percentStr = match.group(1);
             final sizeStr = match.group(2);
             final speed = match.group(3);
             final eta = match.group(4);
-
             if (percentStr != null) {
-              final percent = double.tryParse(percentStr) ?? 0.0;
-              yield DownloadProgressEvent(
-                progress: percent / 100.0,
-                totalSize: sizeStr ?? '?',
-                speed: speed ?? '-',
-                eta: eta ?? '-',
+              controller.add(
+                DownloadProgressEvent(
+                  progress: (double.tryParse(percentStr) ?? 0.0) / 100.0,
+                  totalSize: formatBytes(parseSizeToBytes(sizeStr ?? '')),
+                  speed: speed ?? '-',
+                  eta: eta ?? '-',
+                ),
               );
             }
           }
+        }, onDone: checkDone);
+
+    try {
+      await for (final event in controller.stream) {
+        if (cancelToken.isCancelled) {
+          process.kill(ProcessSignal.sigterm);
+          throw Exception("Cancelado pelo usuário.");
         }
+        yield event;
       }
     } finally {
-      // Se foi cancelado, tentamos deletar todos os arquivos rastreados
       if (cancelToken.isCancelled) {
         process.kill(ProcessSignal.sigkill);
-
-        // Pequeno delay para garantir que o SO liberou os arquivos após matar o processo
         await Future.delayed(const Duration(milliseconds: 500));
-
         for (final filePath in trackedFiles) {
           try {
             final file = File(filePath);
             if (await file.exists()) {
               await file.delete();
-              print("Arquivo temporário removido: $filePath");
             }
-          } catch (e) {
-            print("Não foi possível remover arquivo temporário $filePath: $e");
-          }
+          } catch (_) {}
         }
         throw Exception(
           "Cancelado pelo usuário e arquivos temporários removidos.",
@@ -316,8 +459,7 @@ class YoutubeRepository {
 
     final exitCode = await process.exitCode;
     if (exitCode != 0 && !cancelToken.isCancelled) {
-      final error = errorBuffer.toString();
-      throw Exception("Erro no yt-dlp (Code $exitCode): $error");
+      throw Exception("Erro no yt-dlp (Code $exitCode): $errorBuffer");
     }
   }
 }
