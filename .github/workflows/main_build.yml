@@ -68,15 +68,18 @@ jobs:
 
       - name: Create AppImage (Linux)
         if: matrix.os == 'ubuntu-latest'
-        # Adicionamos as variáveis de ambiente necessárias para a estabilidade do build
+        # As variáveis de ambiente garantem a estabilidade e a nomeação correta
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
           VERSION: "1.0.${{ github.run_number }}"
           OUTPUT: "sesi_downloader-v1.0.${{ github.run_number }}-linux-x86_64.AppImage"
         run: |
-          # 1. Baixar ferramenta de deploy
+          # 1. Baixar ferramenta de deploy E o plugin AppImage
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage
+
+          # Dá permissão de execução para ambos os arquivos .AppImage baixados
+          chmod +x linuxdeploy*.AppImage
 
           # 2. Preparar estrutura AppDir
           mkdir -p AppDir/usr/bin
@@ -101,16 +104,13 @@ jobs:
           convert sesi_downloader.png -resize 256x256! sesi_downloader.png
 
           # 5. Gerar AppImage
-          # O linuxdeploy utilizará as variáveis VERSION e OUTPUT do bloco "env" de forma automática
+          # O linuxdeploy detectará o plugin na mesma pasta e construirá o arquivo final
           ./linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
             --executable AppDir/usr/bin/sesi_downloader \
             --desktop-file sesi_downloader.desktop \
             --icon-file sesi_downloader.png \
             --output appimage
-
-          # O comando 'mv' foi removido, pois a variável $OUTPUT garante 
-          # que o arquivo nascerá com o nome exato esperado pelo próximo step de upload.
 
       - name: Upload Linux Artifact
         if: matrix.os == 'ubuntu-latest'
