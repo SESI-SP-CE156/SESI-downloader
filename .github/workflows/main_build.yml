@@ -68,6 +68,11 @@ jobs:
 
       - name: Create AppImage (Linux)
         if: matrix.os == 'ubuntu-latest'
+        # Adicionamos as variáveis de ambiente necessárias para a estabilidade do build
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+          VERSION: "1.0.${{ github.run_number }}"
+          OUTPUT: "sesi_downloader-v1.0.${{ github.run_number }}-linux-x86_64.AppImage"
         run: |
           # 1. Baixar ferramenta de deploy
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
@@ -96,6 +101,7 @@ jobs:
           convert sesi_downloader.png -resize 256x256! sesi_downloader.png
 
           # 5. Gerar AppImage
+          # O linuxdeploy utilizará as variáveis VERSION e OUTPUT do bloco "env" de forma automática
           ./linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
             --executable AppDir/usr/bin/sesi_downloader \
@@ -103,8 +109,8 @@ jobs:
             --icon-file sesi_downloader.png \
             --output appimage
 
-          # --- ALTERAÇÃO AQUI: Renomear usando a versão ---
-          mv SESI_Downloader*.AppImage sesi_downloader-v1.0.${{ github.run_number }}-linux-x86_64.AppImage
+          # O comando 'mv' foi removido, pois a variável $OUTPUT garante 
+          # que o arquivo nascerá com o nome exato esperado pelo próximo step de upload.
 
       - name: Upload Linux Artifact
         if: matrix.os == 'ubuntu-latest'
@@ -125,7 +131,20 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: dart run inno_bundle:build --no-app --release --no-installer
 
-      - name: Output config into github output
+      # --- NOVA ETAPA: Injetar a instalação do Deno no script do instalador ---
+      - name: Add Deno install command to ISS
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          $issPath = "build\windows\x64\installer\Release\inno-script.iss"
+          $runSection = @"
+
+          [Run]
+          Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""iwr https://deno.land/install.ps1 -useb | iex"""; Flags: runhidden waituntilterminated; StatusMsg: "Instalando dependencias (Deno)..."
+          "@
+          Add-Content -Path $issPath -Value $runSection
+
+      - name: Output config into GitHub output
         if: matrix.os == 'windows-latest'
         id: envs
         # thanks to https://github.com/actions/runner/issues/2224#issuecomment-1289925992
