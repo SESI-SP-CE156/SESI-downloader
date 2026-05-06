@@ -40,11 +40,11 @@ jobs:
           cache: true
 
       # --- DEPENDÊNCIAS DO LINUX ---
-      - name: Install Linux Dependencies
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libsqlite3-dev libfuse2 imagemagick
+      # - name: Install Linux Dependencies
+      #   if: matrix.os == 'ubuntu-latest'
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libsqlite3-dev libfuse2 imagemagick
 
       - name: Install Project Dependencies
         run: flutter pub get
@@ -62,90 +62,89 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       # --- BUILD LINUX ---
-      - name: Build Linux
-        if: matrix.os == 'ubuntu-latest'
-        run: flutter build linux --release
+      # - name: Build Linux
+      #   if: matrix.os == 'ubuntu-latest'
+      #   run: flutter build linux --release
 
       # --- NOVO PACOTE APPIMAGE (Baseado no Corretor Desktop) ---
-      # --- NOVO PACOTE APPIMAGE (Baseado no Corretor Desktop) ---
-      - name: Package as AppImage
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          # 1. Cria a estrutura base do AppDir
-          mkdir -p AppDir
-          mkdir -p AppDir/usr/lib
+      # - name: Package as AppImage
+      #   if: matrix.os == 'ubuntu-latest'
+      #   run: |
+      #     # 1. Cria a estrutura base do AppDir
+      #     mkdir -p AppDir
+      #     mkdir -p AppDir/usr/lib
 
-          # 2. Copia o sqlite do sistema renomeando para o que o Dart (FFI) espera
-          cp /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 AppDir/usr/lib/libsqlite3.so
-          cp /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 AppDir/usr/lib/libsqlite3.so.0
+      #     # 2. Copia o sqlite do sistema renomeando para o que o Dart (FFI) espera
+      #     cp /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 AppDir/usr/lib/libsqlite3.so
+      #     cp /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 AppDir/usr/lib/libsqlite3.so.0
 
-          # 3. Copia o bundle gerado pelo Flutter 
-          # (direto na raiz do AppDir, acompanhando a lógica do AppRun)
-          cp -r build/linux/x64/release/bundle/* AppDir/
+      #     # 3. Copia o bundle gerado pelo Flutter
+      #     # (direto na raiz do AppDir, acompanhando a lógica do AppRun)
+      #     cp -r build/linux/x64/release/bundle/* AppDir/
 
-          # 4. Padroniza o nome do executável para evitar problemas de case sensitivity
-          if [ -f "AppDir/SESI_Downloader" ]; then
-            mv AppDir/SESI_Downloader AppDir/sesi_downloader
-          fi
-          if [ -f "AppDir/Sesi_downloader" ]; then
-            mv AppDir/Sesi_downloader AppDir/sesi_downloader
-          fi
+      #     # 4. Padroniza o nome do executável para evitar problemas de case sensitivity
+      #     if [ -f "AppDir/SESI_Downloader" ]; then
+      #       mv AppDir/SESI_Downloader AppDir/sesi_downloader
+      #     fi
+      #     if [ -f "AppDir/Sesi_downloader" ]; then
+      #       mv AppDir/Sesi_downloader AppDir/sesi_downloader
+      #     fi
 
-          # 5. Configura ícone
-          if [ -f "linux/runner/resources/application_icon.png" ]; then
-            cp linux/runner/resources/application_icon.png AppDir/sesi_downloader.png
-          else
-            wget -q -O AppDir/sesi_downloader.png https://storage.googleapis.com/cms-storage-bucket/0dbfcc7a59cd1cf16282.png
-          fi
-          convert AppDir/sesi_downloader.png -resize 256x256! AppDir/sesi_downloader.png
+      #     # 5. Configura ícone
+      #     if [ -f "linux/runner/resources/application_icon.png" ]; then
+      #       cp linux/runner/resources/application_icon.png AppDir/sesi_downloader.png
+      #     else
+      #       wget -q -O AppDir/sesi_downloader.png https://storage.googleapis.com/cms-storage-bucket/0dbfcc7a59cd1cf16282.png
+      #     fi
+      #     convert AppDir/sesi_downloader.png -resize 256x256! AppDir/sesi_downloader.png
 
-          # 6. Cria o arquivo .desktop (Agora mais robusto para evitar avisos)
-          cat > AppDir/sesi_downloader.desktop <<EOF
-          [Desktop Entry]
-          Name=SESI Downloader
-          Comment=Gerenciador de Downloads do SESI
-          Exec=sesi_downloader
-          Icon=sesi_downloader
-          Type=Application
-          Terminal=false
-          Categories=Utility;Network;
-          EOF
+      #     # 6. Cria o arquivo .desktop (Agora mais robusto para evitar avisos)
+      #     cat > AppDir/sesi_downloader.desktop <<EOF
+      #     [Desktop Entry]
+      #     Name=SESI Downloader
+      #     Comment=Gerenciador de Downloads do SESI
+      #     Exec=sesi_downloader
+      #     Icon=sesi_downloader
+      #     Type=Application
+      #     Terminal=false
+      #     Categories=Utility;Network;
+      #     EOF
 
-          # 7. Criar script AppRun personalizado (O Pulo do Gato)
-          cat > AppDir/AppRun <<EOF
-          #!/bin/sh
+      #     # 7. Criar script AppRun personalizado (O Pulo do Gato)
+      #     cat > AppDir/AppRun <<EOF
+      #     #!/bin/sh
 
-          # Pega o diretório onde o AppImage está montado
-          HERE="\$(dirname "\$(readlink -f "\${0}")")"
+      #     # Pega o diretório onde o AppImage está montado
+      #     HERE="\$(dirname "\$(readlink -f "\${0}")")"
 
-          # Adiciona a pasta interna usr/lib ao caminho de busca de bibliotecas
-          export LD_LIBRARY_PATH="\${HERE}/usr/lib:\$LD_LIBRARY_PATH"
+      #     # Adiciona a pasta interna usr/lib ao caminho de busca de bibliotecas
+      #     export LD_LIBRARY_PATH="\${HERE}/usr/lib:\$LD_LIBRARY_PATH"
 
-          # Executa o binário do Flutter
-          exec "\${HERE}/sesi_downloader" "\$@"
-          EOF
+      #     # Executa o binário do Flutter
+      #     exec "\${HERE}/sesi_downloader" "\$@"
+      #     EOF
 
-          chmod +x AppDir/AppRun
+      #     chmod +x AppDir/AppRun
 
-          # 8. Gera o AppImage usando appimagetool extraído
-          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool-x86_64.AppImage
-          ./appimagetool-x86_64.AppImage --appimage-extract
+      #     # 8. Gera o AppImage usando appimagetool extraído
+      #     wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+      #     chmod +x appimagetool-x86_64.AppImage
+      #     ./appimagetool-x86_64.AppImage --appimage-extract
 
-          # --- A MÁGICA ACONTECE AQUI ---
-          # A flag --no-appstream blinda o pipeline contra o famigerado Exit Code 8!
-          ARCH=x86_64 ./squashfs-root/AppRun --no-appstream AppDir "sesi_downloader-v1.0.${{ github.run_number }}-linux-x86_64.AppImage"
+      #     # --- A MÁGICA ACONTECE AQUI ---
+      #     # A flag --no-appstream blinda o pipeline contra o famigerado Exit Code 8!
+      #     ARCH=x86_64 ./squashfs-root/AppRun --no-appstream AppDir "sesi_downloader-v1.0.${{ github.run_number }}-linux-x86_64.AppImage"
 
-          # 9. Limpeza
-          rm appimagetool-x86_64.AppImage
-          rm -rf squashfs-root
+      #     # 9. Limpeza
+      #     rm appimagetool-x86_64.AppImage
+      #     rm -rf squashfs-root
 
-      - name: Upload Linux Artifact
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-build
-          path: sesi_downloader-v1.0.${{ github.run_number }}-linux-x86_64.AppImage
+      # - name: Upload Linux Artifact
+      #   if: matrix.os == 'ubuntu-latest'
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: linux-build
+      #     path: sesi_downloader-v1.0.${{ github.run_number }}-linux-x86_64.AppImage
 
       # --- BUILD WINDOWS ---
       - name: Build Windows
