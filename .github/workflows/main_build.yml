@@ -68,43 +68,43 @@ jobs:
 
       - name: Create AppImage (Linux)
         if: matrix.os == 'ubuntu-latest'
-        # As variáveis de ambiente garantem a estabilidade e a nomeação correta
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: 1
-          VERSION: "1.0.${{ github.run_number }}"
-          OUTPUT: "sesi_downloader-v1.0.${{ github.run_number }}-linux-x86_64.AppImage"
         run: |
-          # 1. Baixar ferramentas
+          # 1. Baixar ferramenta de deploy padrão
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage
-
-          # --- CORREÇÃO 1: Padronização de Nome e PATH ---
-          # O linuxdeploy exige que o plugin se chame EXATAMENTE "linuxdeploy-plugin-appimage"
-          mv linuxdeploy-plugin-appimage-x86_64.AppImage linuxdeploy-plugin-appimage
-          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-appimage
-
-          # Garante que o linuxdeploy encontre o plugin no diretório de execução do GitHub Actions
-          export PATH=$PATH:$PWD
+          chmod +x linuxdeploy-x86_64.AppImage
 
           # 2. Preparar estrutura AppDir
           mkdir -p AppDir/usr/bin
           cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
 
-          # --- CORREÇÃO 2: Arquivo .desktop estritamente válido ---
-          # Adicionadas as propriedades Version, Comment, Terminal e %U no Exec
+          # --- A MÁGICA DO PROJETO URNA APLICADA AQUI ---
+
+          # 3. Copiar bibliotecas dinâmicas FFI (SQLite)
+          # Essencial para apps Flutter. Previne que o empacotamento quebre por falta de libs não mapeadas.
+          mkdir -p AppDir/usr/lib
+          cp /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 AppDir/usr/lib/libsqlite3.so
+
+          # 4. Padronizar nome do executável (Garante o match perfeito com o Exec= do .desktop)
+          if [ -f "AppDir/usr/bin/SESI_Downloader" ]; then
+            mv AppDir/usr/bin/SESI_Downloader AppDir/usr/bin/sesi_downloader
+          fi
+          if [ -f "AppDir/usr/bin/Sesi_downloader" ]; then
+            mv AppDir/usr/bin/Sesi_downloader AppDir/usr/bin/sesi_downloader
+          fi
+
+          # ----------------------------------------------
+
+          # 5. Criar arquivo .desktop
           cat > sesi_downloader.desktop <<EOF
           [Desktop Entry]
-          Version=1.0
-          Type=Application
           Name=SESI Downloader
-          Comment=Aplicativo para download
-          Exec=sesi_downloader %U
+          Exec=sesi_downloader
           Icon=sesi_downloader
-          Terminal=false
+          Type=Application
           Categories=Utility;Network;
           EOF
 
-          # 4. Configurar Ícone
+          # 6. Configurar Ícone
           if [ -f "linux/runner/resources/application_icon.png" ]; then
             cp linux/runner/resources/application_icon.png sesi_downloader.png
           else
@@ -112,14 +112,17 @@ jobs:
           fi
           convert sesi_downloader.png -resize 256x256! sesi_downloader.png
 
-          # 5. Gerar AppImage
-          # O linuxdeploy detectará o plugin agora perfeitamente integrado no $PATH
+          # 7. Gerar AppImage
+          # Removemos as variáveis de ambiente complexas e confiamos no processo nativo
           ./linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
             --executable AppDir/usr/bin/sesi_downloader \
             --desktop-file sesi_downloader.desktop \
             --icon-file sesi_downloader.png \
             --output appimage
+
+          # 8. Renomear utilizando o padrão do projeto Urna
+          mv SESI_Downloader*.AppImage sesi_downloader-v1.0.${{ github.run_number }}-linux-x86_64.AppImage
 
       - name: Upload Linux Artifact
         if: matrix.os == 'ubuntu-latest'
