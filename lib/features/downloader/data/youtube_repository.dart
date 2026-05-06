@@ -6,7 +6,6 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sesi_downloader/features/downloader/data/browser_detection_service.dart';
-import 'package:sesi_downloader/features/downloader/data/cookie_service.dart';
 import 'package:sesi_downloader/features/downloader/data/deno_service.dart';
 import 'package:sesi_downloader/features/downloader/data/ffmpeg_service.dart';
 import 'package:sesi_downloader/features/downloader/data/yt_dlp_service.dart';
@@ -88,11 +87,13 @@ class YoutubeRepository {
   }
 
   Stream<DownloadProgressEvent> downloadVideo(
-    String videoId, {
+    String videoUrl, {
     required DownloadQuality quality,
     required DownloadCancelToken cancelToken,
     required Function(String filePath) onPathDetermined,
     String? browser,
+    String? startTime,
+    String? endTime,
   }) async* {
     final ytPath = await _ytDlpService.getExecutablePath();
     final ffmpegPath = await _ffmpegService.ensureFfmpegExtracted();
@@ -100,21 +101,48 @@ class YoutubeRepository {
     Directory? directory = await getDownloadsDirectory();
     directory ??= await getApplicationDocumentsDirectory();
 
-    final url = 'https://www.youtube.com/watch?v=$videoId';
-
+    // final url = 'https://www.youtube.com/watch?v=$videoId';
+    final url = videoUrl;
     final Set<String> trackedFiles = {};
 
+    // 1. Identifica se o usuário quer fazer um corte de minutagem
+    final bool isCutting =
+        (startTime != null && startTime.trim().isNotEmpty) ||
+        (endTime != null && endTime.trim().isNotEmpty);
+
     String formatSelector;
-    switch (quality) {
-      case DownloadQuality.good: // 720p
-        formatSelector = 'bestvideo[height<=720]+bestaudio/best[height<=720]';
-        break;
-      case DownloadQuality.great: // 1080p
-        formatSelector = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]';
-        break;
-      case DownloadQuality.extreme: // Max
-        formatSelector = 'bestvideo+bestaudio/best';
-        break;
+
+    // 2. Lógica Dinâmica de Formato
+    if (isCutting) {
+      // Se tiver corte, forçamos MP4 (H.264) para evitar o Segmentation Fault (-11) do FFmpeg no Linux
+      switch (quality) {
+        case DownloadQuality.good: // 720p
+          formatSelector =
+              'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]';
+          break;
+        case DownloadQuality.great: // 1080p
+          formatSelector =
+              'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]';
+          break;
+        case DownloadQuality.extreme: // Max
+          formatSelector =
+              'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best';
+          break;
+      }
+    } else {
+      // Comportamento normal para o vídeo inteiro (livre para pegar o WebM de altíssima qualidade)
+      switch (quality) {
+        case DownloadQuality.good: // 720p
+          formatSelector = 'bestvideo[height<=720]+bestaudio/best[height<=720]';
+          break;
+        case DownloadQuality.great: // 1080p
+          formatSelector =
+              'bestvideo[height<=1080]+bestaudio/best[height<=1080]';
+          break;
+        case DownloadQuality.extreme: // Max
+          formatSelector = 'bestvideo+bestaudio/best';
+          break;
+      }
     }
 
     String? denoPath;
@@ -126,18 +154,10 @@ class YoutubeRepository {
 
     final outputPath = p.join(directory.path, '%(title)s.%(ext)s');
 
-    final cookieService = ref.read(cookieServiceProvider.notifier);
-    final cookieFile = await cookieService.getCookieFile();
-
     List<String> cookieArgs = [];
-    if (await cookieFile.exists()) {
-      cookieArgs = ['--cookies', cookieFile.path];
-    } else {
-      // Fallback para o browser detection se não houver cookies manuais
-      final browser = ref.read(browserDetectionProvider).firstOrNull;
-      if (browser != null) {
-        cookieArgs = ['--cookies-from-browser', browser];
-      }
+    final browser = ref.read(browserDetectionProvider).firstOrNull;
+    if (browser != null) {
+      cookieArgs = ['--cookies-from-browser', browser];
     }
 
     final args = [
@@ -154,10 +174,21 @@ class YoutubeRepository {
       '--no-playlist',
       '--newline',
       '--progress',
-      // '--extractor-args',
-      // 'youtube:player_client=android,ios;player_skip=webpage,configs',
       '--force-overwrites',
     ];
+
+    if (isCutting) {
+      final start =
+          (startTime != null && startTime.trim().isNotEmpty)
+              ? startTime.trim()
+              : '0';
+      final end =
+          (endTime != null && endTime.trim().isNotEmpty)
+              ? endTime.trim()
+              : 'inf';
+
+      args.addAll(['--download-sections', '*$start-$end']);
+    }
 
     final Map<String, String> environment = Map<String, String>.from(
       Platform.environment,
@@ -198,13 +229,12 @@ class YoutubeRepository {
       throw Exception("Falha ao iniciar yt-dlp: $e");
     }
 
-    // Regex atualizado para pegar Tamanho (Size)
-    // Ex: [download]  45.0% of 23.45MiB at  2.00MiB/s ETA 00:05
+    final fileRegex = RegExp(
+      r'\[Merger\] Merging formats into "(.*?)"|\[download\] Destination: (.*?)$|\[download\] (.*?) has already been downloaded|\[ffmpeg\] Destination: (.*?)$',
+    );
+
     final progressRegex = RegExp(
       r'\[download\]\s+(\d+\.?\d*)%\s+of\s+([~\d\.]+\w+)\s+at\s+(\S+)\s+ETA\s+(\S+)',
-    );
-    final fileRegex = RegExp(
-      r'\[Merger\] Merging formats into "(.*)"|\[download\] Destination: (.*)$',
     );
 
     try {
@@ -218,12 +248,19 @@ class YoutubeRepository {
           throw Exception("Cancelado pelo usuário.");
         }
 
-        // Detecta caminho final
-        if (line.contains('Merging formats into') ||
-            line.contains('Destination:')) {
-          final match = fileRegex.firstMatch(line);
-          final path = match?.group(2)?.replaceAll('"', '').trim();
-          if (path != null) {
+        // Detecta caminho final corrigido
+        final fileMatch = fileRegex.firstMatch(line);
+        if (fileMatch != null) {
+          // Pega o primeiro grupo que não for nulo (resolve o bug da captura)
+          final path =
+              (fileMatch.group(1) ??
+                      fileMatch.group(2) ??
+                      fileMatch.group(3) ??
+                      fileMatch.group(4))
+                  ?.replaceAll('"', '')
+                  .trim();
+
+          if (path != null && path.isNotEmpty) {
             trackedFiles.add(path);
             trackedFiles.add('$path.part');
             trackedFiles.add('$path.temp');
@@ -236,7 +273,7 @@ class YoutubeRepository {
           final match = progressRegex.firstMatch(line);
           if (match != null) {
             final percentStr = match.group(1);
-            final sizeStr = match.group(2); // Tamanho (Ex: 23.45MiB)
+            final sizeStr = match.group(2);
             final speed = match.group(3);
             final eta = match.group(4);
 

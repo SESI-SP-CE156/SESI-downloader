@@ -15,7 +15,12 @@ class DownloadList extends _$DownloadList {
   @override
   List<DownloadItem> build() => [];
 
-  Future<void> addDownload(String url, DownloadQuality quality) async {
+  Future<void> addDownload(
+    String url,
+    DownloadQuality quality, {
+    String? startTime,
+    String? endTime,
+  }) async {
     final repository = ref.read(youtubeRepositoryProvider);
     final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
 
@@ -23,10 +28,13 @@ class DownloadList extends _$DownloadList {
       ...state,
       DownloadItem(
         id: tempId,
+        url: url,
         title: 'Buscando metadados...',
         thumbnailUrl: '',
         status: DownloadStatus.fetchingMetadata,
         quality: quality,
+        startTime: startTime,
+        endTime: endTime,
       ),
     ];
 
@@ -40,6 +48,7 @@ class DownloadList extends _$DownloadList {
 
       final realItem = DownloadItem(
         id: video.id,
+        url: url,
         title: video.title,
         author: video.uploader, // Preenche autor
         thumbnailUrl: video.thumbnailUrl,
@@ -47,6 +56,8 @@ class DownloadList extends _$DownloadList {
         quality: quality,
         // Preenche resolução baseada no metadata
         resolution: video.height > 0 ? "${video.height}p" : "HD",
+        startTime: startTime,
+        endTime: endTime,
       );
 
       state = [
@@ -112,10 +123,14 @@ class DownloadList extends _$DownloadList {
 
     bool shouldProcessQueue = true;
 
+    final itemToDownload = state.firstWhere((i) => i.id == videoId);
+
     try {
       final stream = repository.downloadVideo(
-        videoId,
+        itemToDownload.url,
         quality: quality,
+        startTime: itemToDownload.startTime,
+        endTime: itemToDownload.endTime,
         cancelToken: cancelToken,
         onPathDetermined: (fullPath) {
           _updateItem(videoId, (item) => item.copyWith(filePath: fullPath));

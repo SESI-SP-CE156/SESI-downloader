@@ -19,6 +19,7 @@ enum DownloadQuality {
 
 class DownloadItem {
   final String id;
+  final String url;
   final String title;
   final String author; // Novo: Nome do canal
   final String thumbnailUrl;
@@ -33,8 +34,12 @@ class DownloadItem {
   final String eta;
   final String totalSizeString; // Novo: Ex: "45.2 MiB"
 
+  final String? startTime;
+  final String? endTime;
+
   DownloadItem({
     required this.id,
+    required this.url,
     required this.title,
     this.author = '',
     required this.thumbnailUrl,
@@ -47,6 +52,8 @@ class DownloadItem {
     this.audioBitrate = '-',
     this.eta = '-',
     this.totalSizeString = '-',
+    this.startTime,
+    this.endTime,
   });
 
   bool get isDownloading => status == DownloadStatus.downloading;
@@ -56,6 +63,7 @@ class DownloadItem {
 
   DownloadItem copyWith({
     String? id,
+    String? url,
     String? title,
     String? author,
     String? thumbnailUrl,
@@ -68,9 +76,12 @@ class DownloadItem {
     String? audioBitrate,
     String? eta,
     String? totalSizeString,
+    String? startTime,
+    String? endTime,
   }) {
     return DownloadItem(
       id: id ?? this.id,
+      url: url ?? this.url,
       title: title ?? this.title,
       author: author ?? this.author,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
@@ -83,6 +94,8 @@ class DownloadItem {
       audioBitrate: audioBitrate ?? this.audioBitrate,
       eta: eta ?? this.eta,
       totalSizeString: totalSizeString ?? this.totalSizeString,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:sesi_downloader/core/router/router.dart';
 import 'package:sesi_downloader/core/theme/app_theme.dart';
 import 'package:sesi_downloader/features/downloader/data/browser_detection_service.dart';
 import 'package:sesi_downloader/features/downloader/data/deno_service.dart';
+import 'package:sesi_downloader/features/downloader/data/ffmpeg_service.dart';
 import 'package:sesi_downloader/features/downloader/data/yt_dlp_service.dart';
 import 'package:sizer/sizer.dart';
 import 'package:window_manager/window_manager.dart';
@@ -42,13 +43,20 @@ void main() async {
 Future<void> _ensureDependencies(ProviderContainer container) async {
   final ytDlpService = container.read(ytDlpServiceProvider);
   final denoService = container.read(denoServiceProvider);
+  final ffmpegService = container.read(ffmpegServiceProvider);
 
   // 1. Verificar/Atualizar yt-dlp
   try {
-    debugPrint("Verificando atualizações do yt-dlp...");
-    await ytDlpService.updateBinary();
+    await Future.wait([
+      ytDlpService.updateBinary().catchError(
+        (e) => debugPrint("Falha no yt-dlp: $e"),
+      ),
+      ffmpegService.updateBinary().catchError(
+        (e) => debugPrint("Falha no ffmpeg: $e"),
+      ),
+    ]);
   } catch (e) {
-    debugPrint("Falha ao atualizar yt-dlp (pode estar offline): $e");
+    debugPrint("Erro durante atualizações simultâneas: $e");
   }
 
   // 2. Verificar/Instalar Deno

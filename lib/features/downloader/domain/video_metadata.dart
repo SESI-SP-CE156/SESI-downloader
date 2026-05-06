@@ -19,13 +19,18 @@ class VideoMetadata {
 
   factory VideoMetadata.fromJson(Map<String, dynamic> json) {
     return VideoMetadata(
-      id: json['id'] as String? ?? '',
-      title: json['title'] as String? ?? 'Sem título',
-      uploader: json['uploader'] as String? ?? 'Desconhecido',
-      thumbnailUrl: json['thumbnail'] as String? ?? '',
-      durationSeconds: json['duration'] as int? ?? 0,
-      width: json['width'] as int? ?? 0,
-      height: json['height'] as int? ?? 0,
+      id: (json['id'] ?? '').toString(),
+      title: (json['title'] ?? json['id'] ?? 'Sem título').toString(),
+      uploader:
+          (json['uploader'] ??
+                  json['channel'] ??
+                  json['creator'] ??
+                  'Desconhecido')
+              .toString(),
+      thumbnailUrl: (json['thumbnail'] ?? '').toString(),
+      durationSeconds: (json['duration'] as num?)?.toInt() ?? 0,
+      width: (json['width'] as num?)?.toInt() ?? 0,
+      height: (json['height'] as num?)?.toInt() ?? 0,
     );
   }
 }

@@ -1,12 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:open_file/open_file.dart';
 import 'package:sesi_downloader/core/theme/app_theme.dart';
-import 'package:sesi_downloader/features/downloader/data/cookie_service.dart';
 import 'package:sesi_downloader/features/downloader/data/update_service.dart';
 import 'package:sesi_downloader/features/downloader/domain/download_model.dart';
 import 'package:sesi_downloader/features/downloader/presentation/controllers/download_controller.dart';
@@ -20,8 +16,10 @@ class HomeScreen extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final urlController = useTextEditingController();
+    final startController = useTextEditingController();
+    final endController = useTextEditingController();
+
     final downloadList = ref.watch(downloadListProvider);
-    final isLoggedIn = ref.watch(cookieServiceProvider);
 
     useEffect(() {
       Future.microtask(
@@ -78,28 +76,6 @@ class HomeScreen extends HookConsumerWidget {
             const Text('SESI Downloader'),
           ],
         ),
-        actions: [
-          // Botão aparece apenas no Windows
-          if (Platform.isWindows)
-            isLoggedIn
-                ? IconButton(
-                  icon: const Icon(Icons.logout, color: Colors.redAccent),
-                  tooltip: "Sair do YouTube",
-                  onPressed: () async {
-                    await ref.read(cookieServiceProvider.notifier).logout();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Você saiu da sua conta do YouTube.'),
-                      ),
-                    );
-                  },
-                )
-                : IconButton(
-                  icon: const Icon(Icons.login),
-                  tooltip: "Login no YouTube",
-                  onPressed: () => context.push('/login'),
-                ),
-        ],
       ),
       body: Padding(
         padding: EdgeInsets.all(16.sp),
@@ -118,41 +94,69 @@ class HomeScreen extends HookConsumerWidget {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     SizedBox(height: 12.sp),
+
+                    TextField(
+                      controller: urlController,
+                      decoration: const InputDecoration(
+                        labelText:
+                            'Cole o link do YouTube, Instagram, TikTok...',
+                        prefixIcon: Icon(Icons.link),
+                      ),
+                      onSubmitted: (value) {
+                        if (value.isNotEmpty) {
+                          ref
+                              .read(downloadListProvider.notifier)
+                              .addDownload(
+                                value,
+                                DownloadQuality.extreme,
+                                startTime: startController.text,
+                                endTime: endController.text,
+                              );
+                          urlController.clear();
+                          startController.clear();
+                          endController.clear();
+                        }
+                      },
+                    ),
+                    SizedBox(height: 12.sp),
                     Row(
                       children: [
                         Expanded(
                           child: TextField(
-                            controller: urlController,
+                            controller: startController,
                             decoration: const InputDecoration(
-                              labelText: 'Cole o link do YouTube aqui...',
-                              prefixIcon: Icon(Icons.link),
+                              labelText: 'Início (Opcional - Ex: 01:20)',
+                              prefixIcon: Icon(Icons.timer_outlined),
                             ),
-                            onSubmitted: (value) {
-                              if (value.isNotEmpty) {
-                                ref
-                                    .read(downloadListProvider.notifier)
-                                    .addDownload(
-                                      value,
-                                      DownloadQuality.extreme,
-                                    );
-                                urlController.clear();
-                              }
-                            },
+                            keyboardType: TextInputType.datetime,
                           ),
                         ),
                         SizedBox(width: 8.sp),
-
+                        Expanded(
+                          child: TextField(
+                            controller: endController,
+                            decoration: const InputDecoration(
+                              labelText: 'Fim (Opcional - Ex: 02:45)',
+                              prefixIcon: Icon(Icons.timer_off_outlined),
+                            ),
+                            keyboardType: TextInputType.datetime,
+                          ),
+                        ),
+                        SizedBox(width: 8.sp),
                         ElevatedButton.icon(
                           onPressed: () {
                             if (urlController.text.isNotEmpty) {
-                              // SEMPRE usa DownloadQuality.extreme
                               ref
                                   .read(downloadListProvider.notifier)
                                   .addDownload(
                                     urlController.text,
                                     DownloadQuality.extreme,
+                                    startTime: startController.text,
+                                    endTime: endController.text,
                                   );
                               urlController.clear();
+                              startController.clear();
+                              endController.clear();
                             }
                           },
                           icon: const Icon(Icons.add),
@@ -160,6 +164,48 @@ class HomeScreen extends HookConsumerWidget {
                         ),
                       ],
                     ),
+                    // Row(
+                    //   children: [
+                    //     Expanded(
+                    //       child: TextField(
+                    //         controller: urlController,
+                    //         decoration: const InputDecoration(
+                    //           labelText: 'Cole o link do YouTube aqui...',
+                    //           prefixIcon: Icon(Icons.link),
+                    //         ),
+                    //         onSubmitted: (value) {
+                    //           if (value.isNotEmpty) {
+                    //             ref
+                    //                 .read(downloadListProvider.notifier)
+                    //                 .addDownload(
+                    //                   value,
+                    //                   DownloadQuality.extreme,
+                    //                 );
+                    //             urlController.clear();
+                    //           }
+                    //         },
+                    //       ),
+                    //     ),
+                    //     SizedBox(width: 8.sp),
+
+                    //     ElevatedButton.icon(
+                    //       onPressed: () {
+                    //         if (urlController.text.isNotEmpty) {
+                    //           // SEMPRE usa DownloadQuality.extreme
+                    //           ref
+                    //               .read(downloadListProvider.notifier)
+                    //               .addDownload(
+                    //                 urlController.text,
+                    //                 DownloadQuality.extreme,
+                    //               );
+                    //           urlController.clear();
+                    //         }
+                    //       },
+                    //       icon: const Icon(Icons.add),
+                    //       label: const Text("Baixar"),
+                    //     ),
+                    //   ],
+                    // ),
                   ],
                 ),
               ),
@@ -204,6 +250,7 @@ class HomeScreen extends HookConsumerWidget {
                               isSkeleton
                                   ? DownloadItem(
                                     id: 'skeleton',
+                                    url: '',
                                     title: 'Carregando informações...',
                                     thumbnailUrl: '',
                                     status: DownloadStatus.fetchingMetadata,
