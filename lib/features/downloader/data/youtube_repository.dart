@@ -183,14 +183,16 @@ class YoutubeRepository {
     } else {
       switch (quality) {
         case DownloadQuality.good:
-          formatSelector = 'bestvideo[height<=720]+bestaudio/best[height<=720]';
+          formatSelector =
+              'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]';
           break;
         case DownloadQuality.great:
           formatSelector =
-              'bestvideo[height<=1080]+bestaudio/best[height<=1080]';
+              'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]';
           break;
         case DownloadQuality.extreme:
-          formatSelector = 'bestvideo+bestaudio/best';
+          formatSelector =
+              'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best';
           break;
       }
     }
@@ -203,10 +205,18 @@ class YoutubeRepository {
     final outputPath = p.join(directory.path, '%(title)s.%(ext)s');
 
     List<String> cookieArgs = [];
-    final browserName =
-        browser ?? ref.read(browserDetectionProvider).firstOrNull;
-    if (browserName != null) {
-      cookieArgs = ['--cookies-from-browser', browserName];
+    if (Platform.isLinux) {
+      final browserName =
+          browser ?? ref.read(browserDetectionProvider).firstOrNull;
+      if (browserName != null) {
+        cookieArgs = ['--cookies-from-browser', browserName];
+      }
+    }
+
+    List<String> jsRuntimesArgs = [];
+    if (denoPath != null) {
+      // Passamos o caminho exato do executável para garantir que o yt-dlp o encontra
+      jsRuntimesArgs = ['--js-runtimes', 'deno:$denoPath'];
     }
 
     final args = [
@@ -216,10 +226,11 @@ class YoutubeRepository {
       '--format',
       formatSelector,
       '--merge-output-format',
-      'mkv',
+      'mp4',
       '--ffmpeg-location',
       ffmpegPath,
-      ...cookieArgs,
+      ...cookieArgs, // Só terá conteúdo no Linux
+      ...jsRuntimesArgs, // Força o yt-dlp a usar o Deno
       '--no-playlist',
       '--newline',
       '--progress',
