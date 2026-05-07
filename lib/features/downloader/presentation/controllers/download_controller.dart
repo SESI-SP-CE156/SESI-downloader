@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:sesi_downloader/core/utils/url_sanitizer.dart';
 import 'package:sesi_downloader/features/downloader/data/youtube_repository.dart';
 import 'package:sesi_downloader/features/downloader/domain/download_model.dart';
 import 'package:sesi_downloader/features/downloader/domain/video_metadata.dart';
@@ -16,11 +17,13 @@ class DownloadList extends _$DownloadList {
   List<DownloadItem> build() => [];
 
   Future<void> addDownload(
-    String url,
+    String rawUrl,
     DownloadQuality quality, {
     String? startTime,
     String? endTime,
   }) async {
+    final url = UrlSanitizer.sanitize(rawUrl);
+
     final repository = ref.read(youtubeRepositoryProvider);
     final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
 
