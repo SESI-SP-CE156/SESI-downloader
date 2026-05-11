@@ -1,6 +1,21 @@
 // lib/core/utils/url_sanitizer.dart
 
 class UrlSanitizer {
+  static const List<String> supportedHosts = [
+    'youtube.com',
+    'youtu.be',
+    'instagram.com',
+  ];
+
+  static bool isSupported(String inputUrl) {
+    try {
+      final uri = Uri.parse(inputUrl.trim());
+      return supportedHosts.any((host) => uri.host.contains(host));
+    } catch (_) {
+      return false;
+    }
+  }
+
   static String sanitize(String inputUrl) {
     try {
       final uri = Uri.parse(inputUrl.trim());
@@ -24,8 +39,7 @@ class UrlSanitizer {
 
       // 2. Sanitização para Instagram, TikTok, etc.
       // Remove parâmetros de rastreamento (ex: ?igsh=... ou ?is_from_webapp=1)
-      if (uri.host.contains('instagram.com') ||
-          uri.host.contains('tiktok.com')) {
+      if (uri.host.contains('instagram.com')) {
         return '${uri.scheme}://${uri.host}${uri.path}';
       }
 

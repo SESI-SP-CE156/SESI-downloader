@@ -62,6 +62,7 @@ class HomeScreen extends HookConsumerWidget {
                     OpenFile.open(newItem.filePath);
                 },
               ),
+              duration: Duration(seconds: 5),
             ),
           );
         }
@@ -99,8 +100,7 @@ class HomeScreen extends HookConsumerWidget {
                     TextField(
                       controller: urlController,
                       decoration: const InputDecoration(
-                        labelText:
-                            'Cole o link do YouTube, Instagram, TikTok...',
+                        labelText: 'Cole o link do YouTube ou Instagram',
                         prefixIcon: Icon(Icons.link),
                       ),
                       onSubmitted: (value) {
@@ -150,11 +150,12 @@ class HomeScreen extends HookConsumerWidget {
                         SizedBox(width: 8.sp),
                         ElevatedButton.icon(
                           onPressed: () {
+                            final url = urlController.text;
                             if (urlController.text.isNotEmpty) {
                               ref
                                   .read(downloadListProvider.notifier)
                                   .addDownload(
-                                    urlController.text,
+                                    url,
                                     DownloadQuality.extreme,
                                     startTime: startController.text,
                                     endTime: endController.text,
@@ -162,6 +163,15 @@ class HomeScreen extends HookConsumerWidget {
                               urlController.clear();
                               startController.clear();
                               endController.clear();
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Por favor, use links do YouTube ou Instagram.',
+                                  ),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
                             }
                           },
                           icon: const Icon(Icons.add),

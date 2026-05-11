@@ -22,6 +22,21 @@ class DownloadList extends _$DownloadList {
     String? startTime,
     String? endTime,
   }) async {
+    if (!UrlSanitizer.isSupported(rawUrl)) {
+      state = [
+        ...state,
+        DownloadItem(
+          id: 'error_${DateTime.now().millisecondsSinceEpoch}',
+          url: rawUrl,
+          title: 'Link não suportado',
+          thumbnailUrl: '',
+          status: DownloadStatus.error,
+          error: "Apenas links do YouTube e Instagram são permitidos.",
+        ),
+      ];
+      return;
+    }
+
     final url = UrlSanitizer.sanitize(rawUrl);
 
     final repository = ref.read(youtubeRepositoryProvider);
